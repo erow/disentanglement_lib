@@ -113,9 +113,9 @@ def get_config():
   arch_dec = h.fixed("decoder.decoder_fn", "@deconv_decoder", length=1)
   architecture = h.zipit([arch_enc, arch_dec])
   return h.product([
-      get_datasets(),
-      architecture,
-      get_default_models(),
+      get_datasets(),  # 7
+      architecture,  # 1
+      get_default_models(),  # 6 models x 6 hyperparameters
       get_seeds(50),
   ])
 

@@ -52,22 +52,12 @@ flags.DEFINE_integer("model_num", 0,
                      "Integer with model number to train.")
 flags.DEFINE_boolean("only_print", False,
                      "Whether to only print the hyperparameter settings.")
+flags.DEFINE_boolean("only_train", False,
+                     "Whether to only train the model.")
 flags.DEFINE_boolean("overwrite", False,
                      "Whether to overwrite output directory.")
 
 # https://www.tensorflow.org/guide/gpu?hl=zh-cn
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
-    try:
-        tf.config.experimental.set_virtual_device_configuration(
-            gpus[0],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=81024)])
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-        # Virtual devices must be set before GPUs have been initialized
-        print(e)
 
 def main(unused_argv):
   # Obtain the study to reproduce.
@@ -120,6 +110,8 @@ def main(unused_argv):
   visualize_dir = os.path.join(output_directory, "visualizations")
   visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
 
+  if FLAGS.only_train:
+      return
   # We fix the random seed for the postprocessing and evaluation steps (each
   # config gets a different but reproducible seed derived from a master seed of
   # 0). The model seed was set via the gin bindings and configs of the study.
