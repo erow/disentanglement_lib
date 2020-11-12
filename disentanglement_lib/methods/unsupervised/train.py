@@ -51,6 +51,7 @@ def train_with_gin(model_dir,
   if gin_bindings is None:
     gin_bindings = []
   gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+
   train(model_dir, overwrite)
   gin.clear_config()
 
@@ -92,6 +93,10 @@ def train(model_dir,
       tf.gfile.DeleteRecursively(model_dir)
     else:
       raise ValueError("Directory already exists and overwrite is False.")
+    os.mkdir(model_dir)
+
+  with open(os.path.join(model_dir, 'config.gin'), 'w+') as file:
+      file.write(gin.operative_config_str())
 
   # Create a numpy random state. We will sample the random seeds for training
   # and evaluation from this.
@@ -103,12 +108,27 @@ def train(model_dir,
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
   # locally on GPUs.
+  save_checkpoints_steps = training_steps // 10
   run_config = contrib_tpu.RunConfig(
       tf_random_seed=random_seed,
-      keep_checkpoint_max=1,
+      keep_checkpoint_max=11,
+      save_checkpoints_steps=save_checkpoints_steps,
+      save_summary_steps=save_checkpoints_steps,
       tpu_config=contrib_tpu.TPUConfig(iterations_per_loop=500))
+
+  # check the existence of tpu
+  is_tpu = None
+  try:
+      resolver = tf.distribute.cluster_resolver.TPUClusterResolver()
+      tf.config.experimental_connect_to_cluster(resolver)
+      tf.tpu.experimental.initialize_tpu_system(resolver)
+      print("All devices: ", tf.config.list_logical_devices('TPU'))
+      is_tpu = True
+  except ValueError:
+      is_tpu = False
+
   tpu_estimator = contrib_tpu.TPUEstimator(
-      use_tpu=False,
+      use_tpu=is_tpu,
       model_fn=model.model_fn,
       model_dir=os.path.join(model_dir, "tf_checkpoint"),
       train_batch_size=batch_size,
