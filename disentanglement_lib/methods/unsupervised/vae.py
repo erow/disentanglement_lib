@@ -58,6 +58,10 @@ class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
       train_op = tf.group([train_op, update_ops])
       tf.summary.scalar("reconstruction_loss", reconstruction_loss)
       tf.summary.scalar("elbo", -elbo)
+      kl = 0.5 * tf.reduce_mean(
+          tf.square(z_mean) + tf.exp(z_logvar) - z_logvar - 1, [0])
+      for i in range(kl.shape[0]):
+          tf.summary.scalar(f"kl/{i}", kl[i])
 
       logging_hook = tf.train.LoggingTensorHook({
           "loss": loss,

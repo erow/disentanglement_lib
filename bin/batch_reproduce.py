@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 import os
 import wandb
 import argparse
@@ -9,9 +11,12 @@ hyperparameter_defaults = dict(
     architecture=0,
     dataset=0
 )
+parser = argparse.ArgumentParser()
+for key, value in hyperparameter_defaults.items():
+    parser.add_argument(f'--{key}', default=value, type=type(value))
+args = parser.parse_args()
 
-# Pass your defaults to wandb.init
-wandb.init(config=hyperparameter_defaults)
+wandb.init(config=args, resume=True)
 config = wandb.config
 num_pair = dict(
     random_seed=1,
@@ -21,5 +26,5 @@ num_pair = dict(
     dataset=50 * 36
 )
 model_num = sum([config[k] * num for k, num in num_pair.items()])
-# os.system(f'dlib_reproduce --model_num={model_num} --only_train')
 print(config)
+os.system(f'dlib_reproduce --model_num={model_num} --only_train')

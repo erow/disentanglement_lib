@@ -82,7 +82,7 @@ def main(unused_argv):
     if FLAGS.model_dir is None:
       output_directory = os.path.join("output", "{study}", "{model_num}")
     else:
-      output_directory = "output"
+        output_directory = os.path.join(FLAGS.model_dir, '..')
   else:
     output_directory = FLAGS.output_directory
 
@@ -107,8 +107,8 @@ def main(unused_argv):
     model_dir = FLAGS.model_dir
 
   # We visualize reconstructions, samples and latent space traversals.
-  visualize_dir = os.path.join(output_directory, "visualizations")
-  visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
+  # visualize_dir = os.path.join(output_directory, "visualizations")
+  # visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
 
   if FLAGS.only_train:
       return
@@ -132,6 +132,7 @@ def main(unused_argv):
 
   # Iterate through the disentanglement metrics.
   eval_configs = sorted(study.get_eval_config_files())
+  eval_configs = eval_configs[2:3]
   for config in postprocess_config_files:
     post_name = os.path.basename(config).replace(".gin", "")
     post_dir = os.path.join(output_directory, "postprocessed",

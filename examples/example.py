@@ -50,7 +50,7 @@ base_path = "example_output"
 
 # By default, we do not overwrite output directories. Set this to True, if you
 # want to overwrite (in particular, if you rerun this script several times).
-overwrite = False
+overwrite = True
 
 # 1. Train a standard VAE (already implemented in disentanglement_lib).
 # ------------------------------------------------------------------------------

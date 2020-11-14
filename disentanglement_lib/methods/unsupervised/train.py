@@ -28,7 +28,7 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import gin.tf.external_configurables  # pylint: disable=unused-import
 import gin.tf
-from tensorflow.contrib import tpu as contrib_tpu
+from tensorflow_core.contrib import tpu as contrib_tpu
 
 
 def train_with_gin(model_dir,
@@ -51,7 +51,7 @@ def train_with_gin(model_dir,
     if gin_bindings is None:
         gin_bindings = []
     gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
-
+    print(gin.operative_config_str())
     train(model_dir, overwrite)
     gin.clear_config()
 
