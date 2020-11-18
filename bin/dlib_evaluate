@@ -28,10 +28,10 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("input_dir", None, "Directory to take trained "
                     "representation from.")
-flags.DEFINE_string("output_dir", None, "Directory to save scores to.")
-flags.DEFINE_multi_string("gin_config", [],
+flags.DEFINE_string("output_dir", 'mig', "Directory to save scores to.")
+flags.DEFINE_multi_string("gin_config", ["mig.gin"],
                           "List of paths to the config files.")
-flags.DEFINE_multi_string("gin_bindings", [],
+flags.DEFINE_multi_string("gin_bindings", ['dataset.name="dsprites_full"'],
                           "Newline separated list of Gin parameter bindings.")
 flags.DEFINE_string("gin_evaluation_config_glob", None,
                     "Path to glob pattern to evaluation configs.")

@@ -11,7 +11,7 @@ from disentanglement_lib.methods.unsupervised import train
 from disentanglement_lib.methods.unsupervised import vae
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 import gin.tf
 import gin
 
@@ -58,6 +58,23 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
     return means, log_var
 
 
+def lr_mult(alpha):
+    '''
+    https://vimsky.com/article/4317.html
+    :param alpha:
+    :return:
+    '''
+
+    @tf.custom_gradient
+    def _lr_mult(x):
+        def grad(dy):
+            return dy * alpha * tf.ones_like(x)
+
+        return x, grad
+
+    return _lr_mult
+
+
 @gin.configurable("conv_group_encoder", whitelist=[])
 def conv_group_encoder(input_tensor, num_latent, is_training=True):
     """
@@ -73,68 +90,33 @@ def conv_group_encoder(input_tensor, num_latent, is_training=True):
       log_var: Output tensor of shape (batch_size, num_latent) with latent
         variable log variances.
     """
-    del is_training
-
-    e1 = tf.layers.separable_conv2d(
-        inputs=input_tensor,
-        depth_multiplier=4,
-        filters=16,
-        kernel_size=4,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-        name="e1",
-
-    )
-    e2 = tf.layers.separable_conv2d(
-        inputs=e1,
-        depth_multiplier=4,
-        filters=16,
-        kernel_size=4,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-        name="e2",
-    )
-    e3 = tf.layers.separable_conv2d(
-        inputs=e2,
-        depth_multiplier=4,
-        filters=32,
-        kernel_size=2,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-        name="e3",
-    )
-    e4 = tf.layers.separable_conv2d(
-        inputs=e3,
-        depth_multiplier=4,
-        filters=32,
-        kernel_size=2,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-        name="e4",
-    )
-    group_e4 = tf.split(e4, 4, axis=1)
-    mean_list, log_var_list = [], []
-    for i, sep_e4 in enumerate(group_e4):
-        flat_e4 = tf.layers.flatten(sep_e4)
-        e5 = tf.layers.dense(flat_e4, 256, activation=tf.nn.relu, name=f"e5_{i}")
-        mean_list.append(tf.layers.dense(e5, num_latent // 4, activation=None, name=f"means_{i}"))
-        log_var_list.append(tf.layers.dense(e5, num_latent // 4, activation=None, name=f"log_var_{i}"))
-
-    session = tf.get_default_session()
     step = tf.train.get_global_step()
-    stage_steps = (gin.query_parameter('model.training_steps')) // 4  #
-    stage = 0
+    if step is None:  # evaluation
+        stage = tf.constant(-1, dtype=tf.int64)
+    else:
+        stage_steps = (gin.query_parameter('model.training_steps')) // 4  #
+        stage = step // stage_steps
 
-    means = tf.concat(mean_list[:stage + 1] +
-                      [tf.stop_gradient(t) for t in mean_list[stage + 1:]]
-                      , 1)
-    log_var = tf.concat(log_var_list[:stage + 1] +
-                        [tf.stop_gradient(t) for t in log_var_list[stage + 1:]]
-                        , 1)
+    mean_list, log_var_list = [], []
+    dim = num_latent // 4
+    for i in range(4):
+        mu, lvar = conv_encoder(input_tensor, dim, is_training)
+        mu = tf.cond(i <= stage,
+                     lambda: mu,
+                     lambda: tf.stop_gradient(mu))
+        lvar = tf.cond(i <= stage,
+                       lambda: lvar,
+                       lambda: tf.stop_gradient(lvar))
+
+        lr = tf.cond((tf.equal(stage, tf.Variable(i, dtype=tf.int64))), lambda: tf.constant(1.0),
+                     lambda: tf.constant(0.1))
+        lr_fun = lr_mult(lr)
+        mean_list.append(lr_fun(mu))
+        log_var_list.append(lr_fun(lvar))
+
+    means = tf.concat(mean_list, 1, name='means')
+    log_var = tf.concat(log_var_list, 1, name='log_var')
+
     # means = tf.concat(mean_list,1)
     # log_var = tf.concat(log_var_list,1)
     return means, log_var
@@ -148,8 +130,30 @@ overwrite = True
 # We save the results in a `vae` subfolder.
 path_vae = os.path.join(base_path, "fvae")
 
+
+@gin.configurable("FractionalVAE")  # This will allow us to reference the model.
+class FractionalVAE(vae.BaseVAE):
+    def __init__(self, beta=gin.REQUIRED):
+        self.beta = tf.constant(beta)
+
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        # This is how we customize BaseVAE. To learn more, have a look at the
+        # different models in vae.py.
+        del z_mean, z_logvar, z_sampled
+        step = tf.train.get_global_step()
+        if step is None:  # evaluation
+            stage = tf.constant(0, dtype=tf.int64)
+        else:
+            stage_steps = (gin.query_parameter('model.training_steps')) // 4  #
+            stage = step // stage_steps
+        # beta = tf.to_float(self.beta[stage])
+        beta = 100 * (1.1 - tf.to_float(step) / gin.query_parameter('model.training_steps'))
+        return kl_loss * beta
+
 gin_bindings = [
-    "encoder.encoder_fn = @conv_group_encoder"
+    "encoder.encoder_fn = @conv_group_encoder",
+    "model.model = @FractionalVAE()",
+    "FractionalVAE.beta = [100,32,5,1]",
 ]
 # The main training protocol of disentanglement_lib is defined in the
 # disentanglement_lib.methods.unsupervised.train module. To configure
