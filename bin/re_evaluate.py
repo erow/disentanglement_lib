@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 import shutil
 import os
 import argparse
@@ -18,11 +20,14 @@ for dirname in os.listdir(args.work_dir):
     print(dirname)
     for i in range(1, 10):
         ckp = 30000 * i
-        os.system('dlib_ckp2hub '
-                  '--input_dir ' + os.path.join(work_dir, dirname, 'model') +
-                  f'--checkpoint {ckp}')
+        dst = os.path.join(output_dir, f'ckp_{i}', dirname, 'postprocessed')
+        if os.path.exists(dst):
+            break
+        cmd = ('dlib_ckp2hub ' +
+               '--input_dir ' + os.path.join(work_dir, dirname, 'model ') +
+               f' --checkpoint {ckp}')
+        os.system(cmd)
         print('convert hub ', dirname, '-', ckp, )
-
         os.system('dlib_reproduce --model_dir ' +
                   os.path.join(work_dir, dirname, 'model'))
         print('evaluate post processed + mig ', dirname, '-', ckp, )
