@@ -26,7 +26,9 @@ for dirname in os.listdir(args.work_dir):
         cmd = ('dlib_ckp2hub ' +
                '--input_dir ' + os.path.join(work_dir, dirname, 'model ') +
                f' --checkpoint {ckp}')
-        os.system(cmd)
+        if os.system(cmd) != 0:
+            os.system(f'echo "{dirname}" >>error.log')
+            break
         print('convert hub ', dirname, '-', ckp, )
         os.system('dlib_reproduce --model_dir ' +
                   os.path.join(work_dir, dirname, 'model'))
