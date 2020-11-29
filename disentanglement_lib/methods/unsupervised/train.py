@@ -25,35 +25,10 @@ from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import vae  # pylint: disable=unused-import
 from disentanglement_lib.utils import results
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 import gin.tf.external_configurables  # pylint: disable=unused-import
 import gin.tf
 from tensorflow_core.contrib import tpu as contrib_tpu
-
-
-def train_with_gin(model_dir,
-                   overwrite=False,
-                   gin_config_files=None,
-                   gin_bindings=None):
-    """Trains a model based on the provided gin configuration.
-
-    This function will set the provided gin bindings, call the train() function
-    and clear the gin config. Please see train() for required gin bindings.
-
-    Args:
-      model_dir: String with path to directory where model output should be saved.
-      overwrite: Boolean indicating whether to overwrite output directory.
-      gin_config_files: List of gin config files to load.
-      gin_bindings: List of gin bindings to use.
-    """
-    if gin_config_files is None:
-        gin_config_files = []
-    if gin_bindings is None:
-        gin_bindings = []
-    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
-    print(gin.operative_config_str())
-    train(model_dir, overwrite)
-    gin.clear_config()
 
 
 @gin.configurable("model", blacklist=["model_dir", "overwrite"])
@@ -156,7 +131,6 @@ def train(model_dir,
     results_dict["elapsed_time"] = time.time() - experiment_timer
     results.update_result_directory(results_dir, "train", results_dict)
 
-
 def _make_input_fn(ground_truth_data, seed, num_batches=None):
     """Creates an input function for the experiments."""
 
@@ -172,3 +146,29 @@ def _make_input_fn(ground_truth_data, seed, num_batches=None):
         return dataset.make_one_shot_iterator().get_next()
 
     return load_dataset
+
+
+def train_with_gin(model_dir,
+                   overwrite=False,
+                   gin_config_files=None,
+                   gin_bindings=None,
+                   run=train):
+    """Trains a model based on the provided gin configuration.
+
+    This function will set the provided gin bindings, call the train() function
+    and clear the gin config. Please see train() for required gin bindings.
+
+    Args:
+      model_dir: String with path to directory where model output should be saved.
+      overwrite: Boolean indicating whether to overwrite output directory.
+      gin_config_files: List of gin config files to load.
+      gin_bindings: List of gin bindings to use.
+    """
+    if gin_config_files is None:
+        gin_config_files = []
+    if gin_bindings is None:
+        gin_bindings = []
+    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+    print(gin.operative_config_str())
+    run(model_dir, overwrite)
+    gin.clear_config()

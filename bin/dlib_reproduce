@@ -132,7 +132,7 @@ def main(unused_argv):
 
   # Iterate through the disentanglement metrics.
   eval_configs = sorted(study.get_eval_config_files())
-  eval_configs = eval_configs[2:3]
+  eval_configs = eval_configs
   for config in postprocess_config_files:
     post_name = os.path.basename(config).replace(".gin", "")
     post_dir = os.path.join(output_directory, "postprocessed",

@@ -18,11 +18,11 @@ work_dir = args.work_dir
 output_dir = args.output_dir
 for dirname in os.listdir(args.work_dir):
     print(dirname)
-    for i in range(1, 10):
+    for i in range(1, 11):
         ckp = 30000 * i
         dst = os.path.join(output_dir, f'ckp_{i}', dirname, 'postprocessed')
         if os.path.exists(dst):
-            break
+            continue
         cmd = ('dlib_ckp2hub ' +
                '--input_dir ' + os.path.join(work_dir, dirname, 'model ') +
                f' --checkpoint {ckp}')

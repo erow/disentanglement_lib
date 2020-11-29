@@ -1,0 +1,37 @@
+vae/AdamOptimizer.epsilon = 1e-08
+vae/AdamOptimizer.learning_rate = 0.0001
+vae/AdamOptimizer.name = 'Adam'
+vae/AdamOptimizer.use_locking = False
+
+# Parameters for bernoulli_loss:
+# ==============================================================================
+bernoulli_loss.subtract_true_image_entropy = False
+
+# Parameters for conv_encoder:
+# ==============================================================================
+# None.
+
+# Parameters for dataset:
+# ==============================================================================
+dataset.name = 'dsprites_full'
+
+# Parameters for decoder:
+# ==============================================================================
+decoder.decoder_fn = @deconv_decoder
+
+# Parameters for deconv_decoder:
+# ==============================================================================
+# None.
+
+# Parameters for encoder:
+# ==============================================================================
+encoder.encoder_fn = @conv_encoder
+encoder.num_latent = 10
+
+# Parameters for export_as_tf_hub:
+# ==============================================================================
+export_as_tf_hub.drop_collections = None
+
+# Parameters for model:
+# ==============================================================================
+model.model = @vae()
