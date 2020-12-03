@@ -12,7 +12,7 @@ from disentanglement_lib.methods.unsupervised import vae
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
 import torch
-import gin.torch
+import gin
 import gin
 import numpy as np
 

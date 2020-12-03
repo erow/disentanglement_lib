@@ -20,7 +20,7 @@ from __future__ import print_function
 import os
 from disentanglement_lib.utils import results
 import torch
-import gin.torch
+import gin
 
 
 @gin.configurable("test")

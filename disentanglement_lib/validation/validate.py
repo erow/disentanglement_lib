@@ -42,7 +42,7 @@ import numpy as np
 import torch
 import tensorflow_hub as hub
 
-import gin.torch
+import gin
 
 
 def validate_with_gin(model_dir,

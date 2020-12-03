@@ -29,7 +29,7 @@ import numpy as np
 from scipy import stats
 from six.moves import range
 
-import gin.torch
+import gin
 
 
 def visualize(model_dir,

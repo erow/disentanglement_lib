@@ -30,7 +30,7 @@ from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from six.moves import range
 from six.moves import zip
 import torch
-import gin.torch
+import gin
 
 
 class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):

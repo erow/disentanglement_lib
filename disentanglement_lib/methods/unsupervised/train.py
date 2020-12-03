@@ -27,7 +27,7 @@ from disentanglement_lib.utils import results
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-import gin.torch
+import gin
 import pathlib, shutil
 import pytorch_lightning as pl
 
@@ -104,7 +104,7 @@ def train(model_dir,
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         filename='{global_step:05d}',
         period=save_checkpoints_steps)
-    trainer = pl.Trainer(max_steps=training_steps, num_processes=4, gpus=1,
+    trainer = pl.Trainer(max_steps=training_steps, num_processes=4, tpu_cores=8,
                          default_root_dir=model_dir,
                          callbacks=[checkpoint_callback])
     trainer.fit(autoencoder, dl)

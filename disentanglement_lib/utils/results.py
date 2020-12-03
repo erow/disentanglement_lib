@@ -25,7 +25,7 @@ from distutils import dir_util
 import numpy as np
 import simplejson as json
 import torch
-import gin.torch
+import gin
 
 
 def update_result_directory(result_directory,

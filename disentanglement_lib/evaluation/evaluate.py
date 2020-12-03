@@ -42,7 +42,7 @@ from disentanglement_lib.utils import results
 import numpy as np
 import torch
 
-import gin.torch
+import gin
 
 
 def evaluate_with_gin(model_dir,

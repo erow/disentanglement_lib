@@ -25,7 +25,7 @@ from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import resources
 from disentanglement_lib.validation import validate
 
-import gin.torch
+import gin
 
 
 class ValidateTest(parameterized.TestCase):

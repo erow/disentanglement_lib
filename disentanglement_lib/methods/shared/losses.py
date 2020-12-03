@@ -20,7 +20,7 @@ from __future__ import print_function
 import numpy as np
 import torch
 import torch.nn.functional as F
-import gin.torch
+import gin
 
 
 @gin.configurable("bernoulli_loss", allowlist=["subtract_true_image_entropy"])

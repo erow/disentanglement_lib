@@ -21,7 +21,7 @@ from __future__ import print_function
 from typing import Any
 
 import torch
-import gin.torch
+import gin
 import pytorch_lightning as pl
 import torch.nn.functional as F
 

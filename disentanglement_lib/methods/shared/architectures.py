@@ -20,7 +20,7 @@ from __future__ import print_function
 import numpy as np
 import torch
 from torch import nn
-import gin.torch
+import gin
 
 
 @gin.configurable("encoder", allowlist=["num_latent", "encoder_fn"])
