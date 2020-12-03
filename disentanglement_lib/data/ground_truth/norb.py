@@ -25,8 +25,6 @@ import PIL
 from six.moves import range
 from six.moves import zip
 
-
-
 SMALLNORB_TEMPLATE = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "small_norb",
     "smallnorb-{}-{}.mat")
@@ -75,7 +73,6 @@ class SmallNORB(ground_truth_data.GroundTruthData):
   def observation_shape(self):
     return [64, 64, 1]
 
-
   def sample_factors(self, num, random_state):
     """Sample a batch of factors Y."""
     return self.state_space.sample_latent_factors(num, random_state)
@@ -92,8 +89,6 @@ def _load_small_norb_chunks(path_template, chunk_names):
   features = np.concatenate(list_of_features, axis=0)
   features[:, 3] = features[:, 3] / 2  # azimuth values are 0, 2, 4, ..., 24
   return np.concatenate(list_of_images, axis=0), features
-
-
 
 
 def _load_chunks(path_template, chunk_names):
@@ -122,10 +117,10 @@ def _read_binary_matrix(filename):
       dims.append(raw_dims[i])
 
     dtype_map = {
-        507333717: "int8",
-        507333716: "int32",
-        507333713: "float",
-        507333715: "double"
+      507333717: "int8",
+      507333716: "int32",
+      507333713: "float",
+      507333715: "double"
     }
     data = np.frombuffer(s, dtype_map[magic], offset=8 + eff_dim * 4)
   data = data.reshape(tuple(dims))

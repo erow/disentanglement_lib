@@ -28,38 +28,38 @@ import gin
 
 @gin.configurable("dataset")
 def get_named_ground_truth_data(name):
-  """Returns ground truth data set based on name.
+    """Returns ground truth data set based on name.
 
-  Args:
-    name: String with the name of the dataset.
+    Args:
+      name: String with the name of the dataset.
 
-  Raises:
-    ValueError: if an invalid data set name is provided.
-  """
+    Raises:
+      ValueError: if an invalid data set name is provided.
+    """
 
-  if name == "dsprites_full":
-    return dsprites.DSprites([1, 2, 3, 4, 5])
-  elif name == "dsprites_noshape":
-    return dsprites.DSprites([2, 3, 4, 5])
-  elif name == "color_dsprites":
-    return dsprites.ColorDSprites([1, 2, 3, 4, 5])
-  elif name == "noisy_dsprites":
-    return dsprites.NoisyDSprites([1, 2, 3, 4, 5])
-  elif name == "scream_dsprites":
-    return dsprites.ScreamDSprites([1, 2, 3, 4, 5])
-  elif name == "smallnorb":
-    return norb.SmallNORB()
-  elif name == "cars3d":
-    return cars3d.Cars3D()
-  elif name == "mpi3d_toy":
-    return mpi3d.MPI3D(mode="mpi3d_toy")
-  elif name == "mpi3d_realistic":
-    return mpi3d.MPI3D(mode="mpi3d_realistic")
-  elif name == "mpi3d_real":
-    return mpi3d.MPI3D(mode="mpi3d_real")
-  elif name == "shapes3d":
-    return shapes3d.Shapes3D()
-  elif name == "dummy_data":
-    return dummy_data.DummyData()
-  else:
-    raise ValueError("Invalid data set name.")
+    if name == "dsprites_full":
+        return dsprites.DSprites([1, 2, 3, 4, 5])
+    elif name == "dsprites_noshape":
+        return dsprites.DSprites([2, 3, 4, 5])
+    elif name == "color_dsprites":
+        return dsprites.ColorDSprites([1, 2, 3, 4, 5])
+    elif name == "noisy_dsprites":
+        return dsprites.NoisyDSprites([1, 2, 3, 4, 5])
+    elif name == "scream_dsprites":
+        return dsprites.ScreamDSprites([1, 2, 3, 4, 5])
+    elif name == "smallnorb":
+        return norb.SmallNORB()
+    elif name == "cars3d":
+        return cars3d.Cars3D()
+    elif name == "mpi3d_toy":
+        return mpi3d.MPI3D(mode="mpi3d_toy")
+    elif name == "mpi3d_realistic":
+        return mpi3d.MPI3D(mode="mpi3d_realistic")
+    elif name == "mpi3d_real":
+        return mpi3d.MPI3D(mode="mpi3d_real")
+    elif name == "shapes3d":
+        return shapes3d.Shapes3D()
+    elif name == "dummy_data":
+        return dummy_data.DummyData()
+    else:
+        raise ValueError("Invalid data set name.")
