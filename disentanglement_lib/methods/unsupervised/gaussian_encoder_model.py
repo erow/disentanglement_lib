@@ -60,7 +60,7 @@ class GaussianEncoderModel(pl.LightningModule):
         return optimizer
 
 
-@gin.configurable("export_as_tf_hub", allowlist=[])
+@gin.configurable("export_as_tf_hub", whitelist=[])
 def export_as_tf_hub(gaussian_encoder_model,
                      observation_shape,
                      checkpoint_path,

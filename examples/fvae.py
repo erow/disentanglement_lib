@@ -19,7 +19,7 @@ import numpy as np
 beta = None
 
 
-@gin.configurable("conv_group_encoder", allowlist=[])
+@gin.configurable("conv_group_encoder", whitelist=[])
 def conv_group_encoder(input_tensor, num_latent, is_training=True):
     """
     Args:

@@ -23,7 +23,7 @@ from torch import nn
 import gin
 
 
-@gin.configurable("encoder", allowlist=["num_latent", "encoder_fn"])
+@gin.configurable("encoder", whitelist=["num_latent", "encoder_fn"])
 def make_gaussian_encoder(input_shape,
                           num_latent=gin.REQUIRED,
                           encoder_fn=gin.REQUIRED):
@@ -46,7 +46,7 @@ def make_gaussian_encoder(input_shape,
     return encoder_fn(input_shape=input_shape, num_latent=num_latent)
 
 
-@gin.configurable("decoder", allowlist=["decoder_fn"])
+@gin.configurable("decoder", whitelist=["decoder_fn"])
 def make_decoder(num_latent, output_shape,
                  decoder_fn=gin.REQUIRED):
     """Gin wrapper to create and apply a decoder configurable with gin.
@@ -68,7 +68,7 @@ def make_decoder(num_latent, output_shape,
     return decoder_fn(num_latent=num_latent, output_shape=output_shape)
 
 
-@gin.configurable("discriminator", allowlist=["discriminator_fn"])
+@gin.configurable("discriminator", whitelist=["discriminator_fn"])
 def make_discriminator(num_latent,
                        discriminator_fn=gin.REQUIRED):
     """Gin wrapper to create and apply a discriminator configurable with gin.
@@ -91,7 +91,7 @@ def make_discriminator(num_latent,
     return discriminator_fn(num_latent)
 
 
-@gin.configurable("fc_encoder", allowlist=[])
+@gin.configurable("fc_encoder", whitelist=[])
 class fc_encoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
     Based on row 1 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -124,7 +124,7 @@ class fc_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("conv_encoder", allowlist=[])
+@gin.configurable("conv_encoder", whitelist=[])
 class conv_encoder(nn.Module):
     """Convolutional encoder used in beta-VAE paper for the chairs data.
 
@@ -166,7 +166,7 @@ class conv_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("fc_decoder", allowlist=[])
+@gin.configurable("fc_decoder", whitelist=[])
 class fc_decoder(nn.Module):
     def __init__(self, num_latent, output_shape):
         super().__init__()
@@ -193,7 +193,7 @@ class View(nn.Module):
         return x.view(*self.shape)
 
 
-@gin.configurable("deconv_decoder", allowlist=[])
+@gin.configurable("deconv_decoder", whitelist=[])
 class deconv_decoder(nn.Module):
     """Convolutional decoder used in beta-VAE paper for the chairs data.
 
@@ -230,7 +230,7 @@ class deconv_decoder(nn.Module):
         return torch.reshape(x, shape=[-1] + self.output_shape)
 
 
-@gin.configurable("fc_discriminator", allowlist=[])
+@gin.configurable("fc_discriminator", whitelist=[])
 class fc_discriminator(nn.Module):
     """Fully connected discriminator used in FactorVAE paper for all datasets.
 
@@ -270,7 +270,7 @@ class fc_discriminator(nn.Module):
         return logits, clipped
 
 
-@gin.configurable("test_encoder", allowlist=[])
+@gin.configurable("test_encoder", whitelist=[])
 class test_encoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
     Based on row 1 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -301,7 +301,7 @@ class test_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("test_decoder", allowlist=[])
+@gin.configurable("test_decoder", whitelist=[])
 class test_decoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
 
