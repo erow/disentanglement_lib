@@ -23,7 +23,7 @@ from disentanglement_lib.data.ground_truth import dummy_data
 from disentanglement_lib.data.ground_truth import mpi3d
 from disentanglement_lib.data.ground_truth import norb
 from disentanglement_lib.data.ground_truth import shapes3d
-import gin.tf
+import gin.torch
 
 
 @gin.configurable("dataset")

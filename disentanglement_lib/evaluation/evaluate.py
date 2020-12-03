@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import inspect
 import os
+import shutil
 import time
 import warnings
 
@@ -39,10 +40,9 @@ from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: dis
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
 from disentanglement_lib.utils import results
 import numpy as np
-import tensorflow.compat.v1 as tf
-import tensorflow_hub as hub
+import torch
 
-import gin.tf
+import gin.torch
 
 
 def evaluate_with_gin(model_dir,
@@ -93,9 +93,9 @@ def evaluate(model_dir,
       name: Optional string with name of the metric (can be used to name metrics).
     """
     # Delete the output directory if it already exists.
-    if tf.gfile.IsDirectory(output_dir):
+    if os.path.isdir(output_dir):
         if overwrite:
-            tf.gfile.DeleteRecursively(output_dir)
+            shutil.rmtree(output_dir)
         else:
             raise ValueError("Directory already exists and overwrite is False.")
 
@@ -115,40 +115,7 @@ def evaluate(model_dir,
                 "'", ""))
     dataset = named_data.get_named_ground_truth_data()
 
-    # Path to TFHub module of previously trained representation.
-    module_path = os.path.join(model_dir, "tfhub")
-    with hub.eval_function_for_module(module_path) as f:
-
-        def _representation_function(x):
-            """Computes representation vector for input images."""
-            output = f(dict(images=x), signature="representation", as_dict=True)
-            return np.array(output["default"])
-
-        # Computes scores of the representation based on the evaluation_fn.
-        if _has_kwarg_or_kwargs(evaluation_fn, "artifact_dir"):
-            artifact_dir = os.path.join(model_dir, "artifacts", name)
-            results_dict = evaluation_fn(
-                dataset,
-                _representation_function,
-                random_state=np.random.RandomState(random_seed),
-                artifact_dir=artifact_dir)
-        else:
-            # Legacy code path to allow for old evaluation metrics.
-            warnings.warn(
-                "Evaluation function does not appear to accept an"
-                " `artifact_dir` argument. This may not be compatible with "
-                "future versions.", DeprecationWarning)
-            results_dict = evaluation_fn(
-                dataset,
-                _representation_function,
-                random_state=np.random.RandomState(random_seed))
-
-    # Save the results (and all previous results in the pipeline) on disk.
-    original_results_dir = os.path.join(model_dir, "results")
-    results_dir = os.path.join(output_dir, "results")
-    results_dict["elapsed_time"] = time.time() - experiment_timer
-    results.update_result_directory(results_dir, "evaluation", results_dict,
-                                    original_results_dir)
+    # TODO replace tfhub
 
 
 def _has_kwarg_or_kwargs(f, kwarg):

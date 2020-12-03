@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import pathlib
+
 from disentanglement_lib.data.ground_truth import ground_truth_data
 from disentanglement_lib.data.ground_truth import util
 import numpy as np
@@ -25,7 +27,6 @@ import PIL
 import scipy.io as sio
 from six.moves import range
 from sklearn.utils import extmath
-from tensorflow.compat.v1 import gfile
 
 
 CARS3D_PATH = os.path.join(
@@ -83,7 +84,7 @@ class Cars3D(ground_truth_data.GroundTruthData):
 
   def _load_data(self):
     dataset = np.zeros((24 * 4 * 183, 64, 64, 3))
-    all_files = [x for x in gfile.ListDirectory(CARS3D_PATH) if ".mat" in x]
+    all_files = [x for x in os.listdir(CARS3D_PATH) if ".mat" in x]
     for i, filename in enumerate(all_files):
       data_mesh = _load_mesh(filename)
       factor1 = np.array(list(range(4)))
@@ -101,7 +102,7 @@ class Cars3D(ground_truth_data.GroundTruthData):
 
 def _load_mesh(filename):
   """Parses a single source file and rescales contained images."""
-  with gfile.Open(os.path.join(CARS3D_PATH, filename), "rb") as f:
+  with open(os.path.join(CARS3D_PATH, filename), "rb") as f:
     mesh = np.einsum("abcde->deabc", sio.loadmat(f)["im"])
   flattened_mesh = mesh.reshape((-1,) + mesh.shape[2:])
   rescaled_mesh = np.zeros((flattened_mesh.shape[0], 64, 64, 3))

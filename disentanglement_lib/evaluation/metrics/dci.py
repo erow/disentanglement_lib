@@ -27,7 +27,7 @@ import numpy as np
 import scipy
 from six.moves import range
 from sklearn import ensemble
-import gin.tf
+import gin
 
 
 @gin.configurable(

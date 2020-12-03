@@ -38,7 +38,7 @@ from disentanglement_lib.visualize import dendrogram
 from disentanglement_lib.visualize import visualize_scores
 import numpy as np
 
-import gin.tf
+import gin
 
 
 @gin.configurable(

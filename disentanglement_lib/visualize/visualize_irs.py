@@ -24,7 +24,7 @@ import matplotlib
 matplotlib.use("Agg")  # Set headless-friendly backend.
 import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
-import tensorflow.compat.v1 as tf
+import torch
 
 
 def vis_all_interventional_effects(gen_factors, latents, output_dir):
@@ -55,10 +55,10 @@ def vis_all_interventional_effects(gen_factors, latents, output_dir):
         ax.set_title("Parent={}, IRS = {:1.2}".format(parents[l], scores[l]))
 
   fig.tight_layout()
-  if not tf.gfile.IsDirectory(output_dir):
-    tf.gfile.MakeDirs(output_dir)
+  if not os.path.isdir(output_dir):
+      torch.gfile.MakeDirs(output_dir)
   output_path = os.path.join(output_dir, "interventional_effect.png")
-  with tf.gfile.Open(output_path, "wb") as path:
+  with torch.gfile.Open(output_path, "wb") as path:
     fig.savefig(path)
 
 

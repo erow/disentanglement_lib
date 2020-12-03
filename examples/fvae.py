@@ -11,74 +11,15 @@ from disentanglement_lib.methods.unsupervised import train
 from disentanglement_lib.methods.unsupervised import vae
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
-import tensorflow as tf
-import gin.tf
+import torch
+import gin.torch
 import gin
 import numpy as np
 
 beta = None
 
 
-def conv_encoder(input_tensor, num_latent, is_training=True):
-    del is_training
-    filters = 16
-    e1 = tf.layers.conv2d(
-        inputs=input_tensor,
-        filters=filters,
-        kernel_size=4,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same"
-    )
-    e2 = tf.layers.conv2d(
-        inputs=e1,
-        filters=filters,
-        kernel_size=4,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-    )
-    e3 = tf.layers.conv2d(
-        inputs=e2,
-        filters=filters * 2,
-        kernel_size=2,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-    )
-    e4 = tf.layers.conv2d(
-        inputs=e3,
-        filters=filters * 2,
-        kernel_size=2,
-        strides=2,
-        activation=tf.nn.relu,
-        padding="same",
-    )
-    flat_e4 = tf.layers.flatten(e4)
-    e5 = tf.layers.dense(flat_e4, 256, activation=tf.nn.relu, )
-    means = tf.layers.dense(e5, num_latent, activation=None)
-    log_var = tf.layers.dense(e5, num_latent, activation=None)
-    return means, log_var
-
-
-def lr_mult(alpha):
-    '''
-    https://vimsky.com/article/4317.html
-    :param alpha:
-    :return:
-    '''
-
-    @tf.custom_gradient
-    def _lr_mult(x):
-        def grad(dy):
-            return dy * alpha * tf.ones_like(x)
-
-        return x, grad
-
-    return _lr_mult
-
-
-@gin.configurable("conv_group_encoder", whitelist=[])
+@gin.configurable("conv_group_encoder", allowlist=[])
 def conv_group_encoder(input_tensor, num_latent, is_training=True):
     """
     Args:

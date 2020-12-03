@@ -19,6 +19,8 @@ from __future__ import division
 from __future__ import print_function
 import numbers
 import os
+import shutil
+
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.utils import results
 from disentanglement_lib.visualize import visualize_util
@@ -26,10 +28,8 @@ from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_e
 import numpy as np
 from scipy import stats
 from six.moves import range
-import tensorflow.compat.v1 as tf
-from tensorflow.compat.v1 import gfile
-import tensorflow_hub as hub
-import gin.tf
+
+import gin.torch
 
 
 def visualize(model_dir,
@@ -54,9 +54,9 @@ def visualize(model_dir,
   random_state = np.random.RandomState(0)
 
   # Create the output directory if necessary.
-  if tf.gfile.IsDirectory(output_dir):
+  if os.path.isdir(output_dir):
     if overwrite:
-      tf.gfile.DeleteRecursively(output_dir)
+      shutil.rmtree(output_dir)
     else:
       raise ValueError("Directory already exists and overwrite is False.")
 
@@ -67,7 +67,7 @@ def visualize(model_dir,
   gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
   gin_dict = results.gin_dict(gin_config_file)
   gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
-      "'", ""))
+    "'", ""))
 
   # Automatically infer the activation function from gin config.
   activation_str = gin_dict["reconstruction_loss.activation"]
@@ -77,7 +77,7 @@ def visualize(model_dir,
     activation = tanh
   else:
     raise ValueError(
-        "Activation function  could not be infered from gin config.")
+      "Activation function  could not be infered from gin config.")
 
   dataset = named_data.get_named_ground_truth_data()
   num_pics = 64
@@ -87,8 +87,8 @@ def visualize(model_dir,
     # Save reconstructions.
     real_pics = dataset.sample_observations(num_pics, random_state)
     raw_pics = f(
-        dict(images=real_pics), signature="reconstructions",
-        as_dict=True)["images"]
+      dict(images=real_pics), signature="reconstructions",
+      as_dict=True)["images"]
     pics = activation(raw_pics)
     paired_pics = np.concatenate((real_pics, pics), axis=2)
     paired_pics = [paired_pics[i, :, :, :] for i in range(paired_pics.shape[0])]
@@ -96,14 +96,14 @@ def visualize(model_dir,
     if not gfile.IsDirectory(results_dir):
       gfile.MakeDirs(results_dir)
     visualize_util.grid_save_images(
-        paired_pics, os.path.join(results_dir, "reconstructions.jpg"))
+      paired_pics, os.path.join(results_dir, "reconstructions.jpg"))
 
     # Save samples.
     def _decoder(latent_vectors):
       return f(
-          dict(latent_vectors=latent_vectors),
-          signature="decoder",
-          as_dict=True)["images"]
+        dict(latent_vectors=latent_vectors),
+        signature="decoder",
+        as_dict=True)["images"]
 
     num_latent = int(gin_dict["encoder.num_latent"])
     num_pics = 64
@@ -117,9 +117,9 @@ def visualize(model_dir,
 
     # Save latent traversals.
     result = f(
-        dict(images=dataset.sample_observations(num_pics, random_state)),
-        signature="gaussian_encoder",
-        as_dict=True)
+      dict(images=dataset.sample_observations(num_pics, random_state)),
+      signature="gaussian_encoder",
+      as_dict=True)
     means = result["mean"]
     logvars = result["logvar"]
     results_dir = os.path.join(output_dir, "traversals")
@@ -127,7 +127,7 @@ def visualize(model_dir,
       gfile.MakeDirs(results_dir)
     for i in range(means.shape[1]):
       pics = activation(
-          latent_traversal_1d_multi_dim(_decoder, means[i, :], None))
+        latent_traversal_1d_multi_dim(_decoder, means[i, :], None))
       file_name = os.path.join(results_dir, "traversals{}.jpg".format(i))
       visualize_util.grid_save_images([pics], file_name)
 
@@ -154,7 +154,7 @@ def visualize(model_dir,
         loc = np.mean(means[:, j])
         total_variance = np.mean(np.exp(logvars[:, j])) + np.var(means[:, j])
         code[:, j] = visualize_util.cycle_gaussian(
-            base_code[j], num_frames, loc=loc, scale=np.sqrt(total_variance))
+          base_code[j], num_frames, loc=loc, scale=np.sqrt(total_variance))
         images.append(np.array(activation(_decoder(code))))
       filename = os.path.join(results_dir, "fitted_gaussian_cycle%d.gif" % i)
       visualize_util.save_animation(np.array(images), filename, fps)
@@ -179,7 +179,7 @@ def visualize(model_dir,
         total_variance = np.mean(np.exp(logvars[:, j])) + np.var(means[:, j])
         scale = np.sqrt(total_variance)
         code[:, j] = visualize_util.cycle_interval(base_code[j], num_frames,
-                                                   loc-2.*scale, loc+2.*scale)
+                                                   loc - 2. * scale, loc + 2. * scale)
         images.append(np.array(activation(_decoder(code))))
       filename = os.path.join(results_dir, "conf_interval_cycle%d.gif" % i)
       visualize_util.save_animation(np.array(images), filename, fps)
@@ -200,7 +200,7 @@ def visualize(model_dir,
     factors = dataset.sample_factors(num_points_irs, random_state)
     obs = dataset.sample_observations_from_factors(factors, random_state)
     latents = f(
-        dict(images=obs), signature="gaussian_encoder", as_dict=True)["mean"]
+      dict(images=obs), signature="gaussian_encoder", as_dict=True)["mean"]
     results_dir = os.path.join(output_dir, "interventional_effects")
     vis_all_interventional_effects(factors, latents, results_dir)
 

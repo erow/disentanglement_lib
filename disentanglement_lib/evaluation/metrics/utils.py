@@ -23,7 +23,7 @@ import sklearn
 from sklearn import ensemble
 from sklearn import linear_model
 from sklearn import model_selection
-import gin.tf
+import gin
 
 
 def generate_batch_factor_code(ground_truth_data, representation_function,

@@ -23,7 +23,6 @@ from disentanglement_lib.data.ground_truth import util
 import numpy as np
 import PIL
 from six.moves import range
-from tensorflow.compat.v1 import gfile
 
 DSPRITES_PATH = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "dsprites",
@@ -56,7 +55,7 @@ class DSprites(ground_truth_data.GroundTruthData):
     self.latent_factor_indices = latent_factor_indices
     self.data_shape = [64, 64, 1]
     # Load the data so that we can sample from it.
-    with gfile.Open(DSPRITES_PATH, "rb") as data_file:
+    with open(DSPRITES_PATH, "rb") as data_file:
       # Data was saved originally using python2, so we need to set the encoding.
       data = np.load(data_file, encoding="latin1", allow_pickle=True)
       self.images = np.array(data["imgs"])
@@ -177,7 +176,7 @@ class ScreamDSprites(DSprites):
   def __init__(self, latent_factor_indices=None):
     DSprites.__init__(self, latent_factor_indices)
     self.data_shape = [64, 64, 3]
-    with gfile.Open(SCREAM_PATH, "rb") as f:
+    with open(SCREAM_PATH, "rb") as f:
       scream = PIL.Image.open(f)
       scream.thumbnail((350, 274, 3))
       self.scream = np.array(scream) * 1. / 255.

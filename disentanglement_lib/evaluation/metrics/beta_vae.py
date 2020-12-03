@@ -25,7 +25,7 @@ from absl import logging
 import numpy as np
 from six.moves import range
 from sklearn import linear_model
-import gin.tf
+import gin
 
 
 @gin.configurable(

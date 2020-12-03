@@ -19,8 +19,8 @@ from __future__ import division
 from __future__ import print_function
 import os
 from disentanglement_lib.utils import results
-import tensorflow.compat.v1 as tf
-import gin.tf
+import torch
+import gin.torch
 
 
 @gin.configurable("test")
@@ -28,7 +28,7 @@ def test_fn(value=gin.REQUIRED):
   return value
 
 
-class ResultsTest(tf.test.TestCase):
+class ResultsTest(torch.test.TestCase):
 
   def test_namespaced_dict(self):
     """Tests namespacing functionality."""
@@ -61,7 +61,7 @@ class ResultsTest(tf.test.TestCase):
     gin.bind_parameter(parameter_name, 1)
     _ = test_fn()
     config_path = os.path.join(self.get_temp_dir(), "config.gin")
-    with tf.gfile.GFile(config_path, "w") as f:
+    with open(config_path, "w") as f:
       f.write(gin.operative_config_str())
       f.close()
     self.assertDictEqual(results.gin_dict(config_path), {parameter_name: "1"})
@@ -82,4 +82,4 @@ class ResultsTest(tf.test.TestCase):
     })
 
 if __name__ == "__main__":
-  tf.test.main()
+  torch.test.main()

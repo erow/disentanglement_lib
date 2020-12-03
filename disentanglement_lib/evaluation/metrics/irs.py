@@ -24,7 +24,7 @@ from __future__ import print_function
 from absl import logging
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
-import gin.tf
+import gin
 
 
 @gin.configurable(

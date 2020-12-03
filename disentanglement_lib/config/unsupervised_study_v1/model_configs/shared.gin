@@ -15,25 +15,11 @@
 
 model.batch_size = 64
 encoder.num_latent = 10
-model.model = @vae()
+model.model = @vae
 dataset.name = "dsprites_full"
 vae.beta = 1.
-vae_optimizer.optimizer_fn = @vae/AdamOptimizer
-discriminator_optimizer.optimizer_fn = @discriminator/AdamOptimizer
 model.training_steps = 300000
 model.random_seed=0
-vae/AdamOptimizer.beta1 = 0.9
-vae/AdamOptimizer.beta2 = 0.999
-vae/AdamOptimizer.epsilon = 1e-08
-vae/AdamOptimizer.learning_rate = 0.0001
-vae/AdamOptimizer.name = 'Adam'
-vae/AdamOptimizer.use_locking = False
-discriminator/AdamOptimizer.beta1 = 0.5
-discriminator/AdamOptimizer.beta2 = 0.9
-discriminator/AdamOptimizer.epsilon = 1e-08
-discriminator/AdamOptimizer.name = 'Adam'
-discriminator/AdamOptimizer.use_locking = False
-discriminator/AdamOptimizer.learning_rate = 0.0001
 encoder.encoder_fn = @conv_encoder
 decoder.decoder_fn = @deconv_decoder
 reconstruction_loss.loss_fn = @bernoulli_loss

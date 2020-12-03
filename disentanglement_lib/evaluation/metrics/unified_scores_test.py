@@ -26,7 +26,7 @@ from disentanglement_lib.data.ground_truth import dummy_data
 from disentanglement_lib.evaluation.metrics import unified_scores
 import numpy as np
 
-import gin.tf
+import gin
 
 
 def _identity_discretizer(target, num_bins):

@@ -27,7 +27,7 @@ from disentanglement_lib.evaluation.metrics import strong_downstream_task
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
 
-import gin.tf
+import gin
 
 
 def _identity_discretizer(target, num_bins):

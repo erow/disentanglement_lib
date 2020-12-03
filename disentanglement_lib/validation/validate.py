@@ -39,10 +39,10 @@ from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylin
 from disentanglement_lib.methods.semi_supervised import semi_supervised_utils  # pylint: disable=unused-import
 from disentanglement_lib.utils import results
 import numpy as np
-import tensorflow.compat.v1 as tf
+import torch
 import tensorflow_hub as hub
 
-import gin.tf
+import gin.torch
 
 
 def validate_with_gin(model_dir,
@@ -99,9 +99,9 @@ def validate(model_dir,
   del name
 
   # Delete the output directory if it already exists.
-  if tf.gfile.IsDirectory(output_dir):
+  if os.path.isdir(output_dir):
     if overwrite:
-      tf.gfile.DeleteRecursively(output_dir)
+        shutil.rmtree(output_dir)
     else:
       raise ValueError("Directory already exists and overwrite is False.")
 

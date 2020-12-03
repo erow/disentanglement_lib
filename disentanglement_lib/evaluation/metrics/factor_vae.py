@@ -24,7 +24,7 @@ from absl import logging
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
 from six.moves import range
-import gin.tf
+import gin
 
 
 @gin.configurable(

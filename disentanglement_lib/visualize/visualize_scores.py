@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import tensorflow.compat.v1 as tf
+import torch
 
 
 def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
@@ -78,10 +78,10 @@ def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
   ax = plt.subplot(plot_grid[:, -1])
   plot_bar_palette(palette, max_val, ax)
 
-  if not tf.gfile.IsDirectory(output_dir):
-    tf.gfile.MakeDirs(output_dir)
+  if not os.path.isdir(output_dir):
+      torch.gfile.MakeDirs(output_dir)
   output_path = os.path.join(output_dir, "{}.png".format(name))
-  with tf.gfile.Open(output_path, "wb") as path:
+  with torch.gfile.Open(output_path, "wb") as path:
     fig.savefig(path, bbox_inches="tight")
 
 
@@ -165,10 +165,10 @@ def plot_recovery_vs_independent(matrix, output_dir, name):
   plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.25), ncol=2)
   plt.xlabel("Threshold")
   plt.ylabel("Number of Factors")
-  if not tf.gfile.IsDirectory(output_dir):
-    tf.gfile.MakeDirs(output_dir)
+  if not os.path.isdir(output_dir):
+      torch.gfile.MakeDirs(output_dir)
   output_path = os.path.join(output_dir, name+".png")
-  with tf.gfile.Open(output_path, "wb") as path:
+  with torch.gfile.Open(output_path, "wb") as path:
     fig.savefig(path, bbox_inches="tight")
 
 

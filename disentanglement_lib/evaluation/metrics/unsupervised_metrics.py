@@ -18,7 +18,7 @@ from absl import logging
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
 import scipy
-import gin.tf
+import gin
 
 
 @gin.configurable(

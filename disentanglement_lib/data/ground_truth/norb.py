@@ -24,7 +24,7 @@ import numpy as np
 import PIL
 from six.moves import range
 from six.moves import zip
-import tensorflow.compat.v1 as tf
+
 
 
 SMALLNORB_TEMPLATE = os.path.join(
@@ -111,7 +111,7 @@ def _load_chunks(path_template, chunk_names):
 
 def _read_binary_matrix(filename):
   """Reads and returns binary formatted matrix stored in filename."""
-  with tf.gfile.GFile(filename, "rb") as f:
+  with open(filename, "rb") as f:
     s = f.read()
     magic = int(np.frombuffer(s, "int32", 1))
     ndim = int(np.frombuffer(s, "int32", 1, 4))

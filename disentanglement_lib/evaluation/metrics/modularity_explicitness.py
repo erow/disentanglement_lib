@@ -27,7 +27,7 @@ from six.moves import range
 from sklearn import linear_model
 from sklearn import metrics
 from sklearn import preprocessing
-import gin.tf
+import gin
 
 
 @gin.configurable(

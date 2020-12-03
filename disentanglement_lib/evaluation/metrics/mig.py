@@ -21,7 +21,7 @@ Based on "Isolating Sources of Disentanglement in Variational Autoencoders"
 from absl import logging
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
-import gin.tf
+import gin
 
 
 @gin.configurable(

@@ -19,7 +19,6 @@ set -e
 
 # We manually run all the tests.
 python -m disentanglement_lib.methods.shared.architectures_test
-python -m disentanglement_lib.methods.shared.optimizers_test
 python -m disentanglement_lib.methods.unsupervised.vae_test
 python -m disentanglement_lib.methods.unsupervised.train_test
 python -m disentanglement_lib.utils.convolute_hub_test

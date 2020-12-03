@@ -22,85 +22,54 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import math
+from abc import ABC
+
 from disentanglement_lib.methods.shared import architectures  # pylint: disable=unused-import
 from disentanglement_lib.methods.shared import losses  # pylint: disable=unused-import
-from disentanglement_lib.methods.shared import optimizers  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from six.moves import range
 from six.moves import zip
-import tensorflow.compat.v1 as tf
-import gin.tf
-from tensorflow.contrib import tpu as contrib_tpu
+import torch
+import gin.torch
 
 
 class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
     """Abstract base class of a basic Gaussian encoder model."""
 
-    def model_fn(self, features, labels, mode, params):
-        """TPUEstimator compatible model function."""
+    def __init__(self, input_shape):
+        super().__init__()
+        self.gaussian_encoder = architectures.make_gaussian_encoder(input_shape)
+        self.num_latent = self.gaussian_encoder.num_latent
+        self.input_shape = input_shape
+        self.decode = architectures.make_decoder(self.num_latent, input_shape)
+
+    def model_fn(self, features, labels):
+        """Training compatible model function."""
         del labels
-        is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-        data_shape = features.get_shape().as_list()[1:]
-        z_mean, z_logvar = self.gaussian_encoder(features, is_training=is_training)
+        z_mean, z_logvar = self.gaussian_encoder(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-        reconstructions = self.decode(z_sampled, data_shape, is_training)
+        reconstructions = self.decode(z_sampled)
         per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
-        reconstruction_loss = tf.reduce_mean(per_sample_loss)
+        reconstruction_loss = torch.mean(per_sample_loss)
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
         regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
-        loss = tf.add(reconstruction_loss, regularizer, name="loss")
-        elbo = tf.add(reconstruction_loss, kl_loss, name="elbo")
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            optimizer = optimizers.make_vae_optimizer()
-            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            train_op = optimizer.minimize(
-                loss=loss, global_step=tf.train.get_global_step())
-            train_op = tf.group([train_op, update_ops])
-            tf.summary.scalar("reconstruction_loss", reconstruction_loss)
-            tf.summary.scalar("elbo", -elbo)
-            kl = 0.5 * tf.reduce_mean(
-                tf.square(z_mean) + tf.exp(z_logvar) - z_logvar - 1, [0])
-            for i in range(kl.shape[0]):
-                tf.summary.scalar(f"kl/{i}", kl[i])
+        loss = torch.add(reconstruction_loss, regularizer)
+        elbo = torch.add(reconstruction_loss, kl_loss)
 
-            logging_hook = tf.train.LoggingTensorHook({
-                "loss": loss,
-                "reconstruction_loss": reconstruction_loss,
-                "elbo": -elbo
-            },
-                every_n_iter=100)
-            return contrib_tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=loss,
-                train_op=train_op,
-                training_hooks=[logging_hook])
-        elif mode == tf.estimator.ModeKeys.EVAL:
-            return contrib_tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=loss,
-                eval_metrics=(make_metric_fn("reconstruction_loss", "elbo",
-                                             "regularizer", "kl_loss"),
-                              [reconstruction_loss, -elbo, regularizer, kl_loss]))
-        else:
-            raise NotImplementedError("Eval mode not supported.")
+        summary = {'reconstruction_loss': reconstruction_loss,
+                   'elbo': -elbo,
+                   'loss': loss}
+        kl = 0.5 * torch.mean(
+            torch.square(z_mean.data) + torch.exp(z_logvar.data) - z_logvar.data - 1, [0])
 
-    def gaussian_encoder(self, input_tensor, is_training):
-        """Applies the Gaussian encoder to images.
+        for i in range(kl.shape[0]):
+            summary[f"kl/{i}"] = kl[i]
 
-        Args:
-          input_tensor: Tensor with the observations to be encoded.
-          is_training: Boolean indicating whether in training mode.
+        return summary
 
-        Returns:
-          Tuple of tensors with the mean and log variance of the Gaussian encoder.
-        """
-        return architectures.make_gaussian_encoder(
-            input_tensor, is_training=is_training)
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        raise NotImplementedError
 
-    def decode(self, latent_tensor, observation_shape, is_training):
-        """Decodes the latent_tensor to an observation."""
-        return architectures.make_decoder(
-            latent_tensor, observation_shape, is_training=is_training)
 
 
 def shuffle_codes(z):
@@ -113,25 +82,26 @@ def shuffle_codes(z):
       shuffled: [batch_size, num_latent] shuffled representation across the batch.
     """
     z_shuffle = []
-    for i in range(z.get_shape()[1]):
-        z_shuffle.append(tf.random_shuffle(z[:, i]))
-    shuffled = tf.stack(z_shuffle, 1, name="latent_shuffled")
+    for i in range(z.shape[1]):
+        idx = torch.randperm(z.shape[0], device=z.device)
+        z_shuffle.append(z[idx, i])
+    shuffled = torch.stack(z_shuffle, 1, )
     return shuffled
 
 
 def compute_gaussian_kl(z_mean, z_logvar):
     """Compute KL divergence between input Gaussian and Standard Normal."""
-    return tf.reduce_mean(
-        0.5 * tf.reduce_sum(
-            tf.square(z_mean) + tf.exp(z_logvar) - z_logvar - 1, [1]),
-        name="kl_loss")
+    return torch.mean(
+        0.5 * torch.sum(
+            torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1, [1]),
+    )
 
 
 def make_metric_fn(*names):
-    """Utility function to report tf.metrics in model functions."""
+    """Utility function to report torch.metrics in model functions."""
 
     def metric_fn(*args):
-        return {name: tf.metrics.mean(vec) for name, vec in zip(names, args)}
+        return {name: torch.mean(vec) for name, vec in zip(names, args)}
 
     return metric_fn
 
@@ -140,7 +110,7 @@ def make_metric_fn(*names):
 class BetaVAE(BaseVAE):
     """BetaVAE model."""
 
-    def __init__(self, beta=gin.REQUIRED):
+    def __init__(self, input_shape, beta=gin.REQUIRED):
         """Creates a beta-VAE model.
 
         Implementing Eq. 4 of "beta-VAE: Learning Basic Visual Concepts with a
@@ -153,6 +123,7 @@ class BetaVAE(BaseVAE):
         Returns:
           model_fn: Model function for TPUEstimator.
         """
+        super().__init__(input_shape)
         self.beta = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
@@ -171,18 +142,15 @@ def anneal(c_max, step, iteration_threshold):
     Returns:
       Capacity annealed linearly until c_max.
     """
-    return tf.math.minimum(c_max * 1.,
-                           c_max * 1. * tf.to_float(step) / iteration_threshold)
+    return min(c_max * 1.,
+               c_max * 1. * (step) / iteration_threshold)
 
 
 @gin.configurable("annealed_vae")
 class AnnealedVAE(BaseVAE):
     """AnnealedVAE model."""
 
-    def __init__(self,
-                 gamma=gin.REQUIRED,
-                 c_max=gin.REQUIRED,
-                 iteration_threshold=gin.REQUIRED):
+    def __init__(self, input_shape, gamma=gin.REQUIRED, c_max=gin.REQUIRED, iteration_threshold=gin.REQUIRED):
         """Creates an AnnealedVAE model.
 
         Implementing Eq. 8 of "Understanding disentangling in beta-VAE"
@@ -193,21 +161,22 @@ class AnnealedVAE(BaseVAE):
           c_max: Maximum capacity of the bottleneck.
           iteration_threshold: How many iterations to reach c_max.
         """
+        super().__init__(input_shape)
         self.gamma = gamma
         self.c_max = c_max
         self.iteration_threshold = iteration_threshold
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
-        c = anneal(self.c_max, tf.train.get_global_step(), self.iteration_threshold)
-        return self.gamma * tf.math.abs(kl_loss - c)
+        c = anneal(self.c_max, self.global_step, self.iteration_threshold)
+        return self.gamma * torch.abs(kl_loss - c)
 
 
 @gin.configurable("factor_vae")
 class FactorVAE(BaseVAE):
     """FactorVAE model."""
 
-    def __init__(self, gamma=gin.REQUIRED):
+    def __init__(self, input_shape, gamma=gin.REQUIRED):
         """Creates a FactorVAE model.
 
         Implementing Eq. 2 of "Disentangling by Factorizing"
@@ -216,75 +185,47 @@ class FactorVAE(BaseVAE):
         Args:
           gamma: Hyperparameter for the regularizer.
         """
+        super().__init__(input_shape)
         self.gamma = gamma
+        self.discriminator = architectures.make_discriminator(self.num_latent)
 
-    def model_fn(self, features, labels, mode, params):
+    def model_fn(self, features, labels):
         """TPUEstimator compatible model function."""
-        del labels
-        is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-        data_shape = features.get_shape().as_list()[1:]
-        z_mean, z_logvar = self.gaussian_encoder(features, is_training=is_training)
+
+        data_shape = features.shape[1:]
+        z_mean, z_logvar = self.gaussian_encoder(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         z_shuffle = shuffle_codes(z_sampled)
-        with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
-            logits_z, probs_z = architectures.make_discriminator(
-                z_sampled, is_training=is_training)
-            _, probs_z_shuffle = architectures.make_discriminator(
-                z_shuffle, is_training=is_training)
-        reconstructions = self.decode(z_sampled, data_shape, is_training)
+
+        logits_z, probs_z = self.discriminator(z_sampled)
+        _, probs_z_shuffle = self.discriminator(z_shuffle)
+
+        reconstructions = self.decode(z_sampled)
         per_sample_loss = losses.make_reconstruction_loss(
             features, reconstructions)
-        reconstruction_loss = tf.reduce_mean(per_sample_loss)
+        reconstruction_loss = torch.mean(per_sample_loss)
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
-        standard_vae_loss = tf.add(reconstruction_loss, kl_loss, name="VAE_loss")
+        standard_vae_loss = torch.add(reconstruction_loss, kl_loss)
         # tc = E[log(p_real)-log(p_fake)] = E[logit_real - logit_fake]
         tc_loss_per_sample = logits_z[:, 0] - logits_z[:, 1]
-        tc_loss = tf.reduce_mean(tc_loss_per_sample, axis=0)
+        tc_loss = torch.mean(tc_loss_per_sample, dim=0)
         regularizer = kl_loss + self.gamma * tc_loss
-        factor_vae_loss = tf.add(
-            standard_vae_loss, self.gamma * tc_loss, name="factor_VAE_loss")
-        discr_loss = tf.add(
-            0.5 * tf.reduce_mean(tf.log(probs_z[:, 0])),
-            0.5 * tf.reduce_mean(tf.log(probs_z_shuffle[:, 1])),
-            name="discriminator_loss")
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            optimizer_vae = optimizers.make_vae_optimizer()
-            optimizer_discriminator = optimizers.make_discriminator_optimizer()
-            all_variables = tf.trainable_variables()
-            encoder_vars = [var for var in all_variables if "encoder" in var.name]
-            decoder_vars = [var for var in all_variables if "decoder" in var.name]
-            discriminator_vars = [var for var in all_variables \
-                                  if "discriminator" in var.name]
-            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            train_op_vae = optimizer_vae.minimize(
-                loss=factor_vae_loss,
-                global_step=tf.train.get_global_step(),
-                var_list=encoder_vars + decoder_vars)
-            train_op_discr = optimizer_discriminator.minimize(
-                loss=-discr_loss,
-                global_step=tf.train.get_global_step(),
-                var_list=discriminator_vars)
-            train_op = tf.group(train_op_vae, train_op_discr, update_ops)
-            tf.summary.scalar("reconstruction_loss", reconstruction_loss)
-            logging_hook = tf.train.LoggingTensorHook({
-                "loss": factor_vae_loss,
-                "reconstruction_loss": reconstruction_loss
-            },
-                every_n_iter=50)
-            return contrib_tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=factor_vae_loss,
-                train_op=train_op,
-                training_hooks=[logging_hook])
-        elif mode == tf.estimator.ModeKeys.EVAL:
-            return contrib_tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=factor_vae_loss,
-                eval_metrics=(make_metric_fn("reconstruction_loss", "regularizer",
-                                             "kl_loss"),
-                              [reconstruction_loss, regularizer, kl_loss]))
-        else:
-            raise NotImplementedError("Eval mode not supported.")
+        factor_vae_loss = torch.add(
+            standard_vae_loss, self.gamma * tc_loss)
+        discr_loss = torch.add(
+            0.5 * torch.mean(torch.log(probs_z[:, 0])),
+            0.5 * torch.mean(torch.log(probs_z_shuffle[:, 1])))
+
+        summary = {'reconstruction_loss': reconstruction_loss,
+                   'loss': factor_vae_loss}
+
+        kl = 0.5 * torch.mean(
+            torch.square(z_mean.data) + torch.exp(z_logvar.data) - z_logvar.data - 1, [0])
+
+        for i in range(kl.shape[0]):
+            summary[f"kl/{i}"] = kl[i]
+
+        return summary
 
 
 def compute_covariance_z_mean(z_mean):
@@ -299,12 +240,12 @@ def compute_covariance_z_mean(z_mean):
       cov_z_mean: Covariance of encoder mean, tensor of size [num_latent,
         num_latent].
     """
-    expectation_z_mean_z_mean_t = tf.reduce_mean(
-        tf.expand_dims(z_mean, 2) * tf.expand_dims(z_mean, 1), axis=0)
-    expectation_z_mean = tf.reduce_mean(z_mean, axis=0)
-    cov_z_mean = tf.subtract(
+    expectation_z_mean_z_mean_t = torch.mean(
+        torch.unsqueeze(z_mean, 2) * torch.unsqueeze(z_mean, 1), dim=0)
+    expectation_z_mean = torch.mean(z_mean, dim=0)
+    cov_z_mean = torch.sub(
         expectation_z_mean_z_mean_t,
-        tf.expand_dims(expectation_z_mean, 1) * tf.expand_dims(
+        torch.unsqueeze(expectation_z_mean, 1) * torch.unsqueeze(
             expectation_z_mean, 0))
     return cov_z_mean
 
@@ -323,12 +264,12 @@ def regularize_diag_off_diag_dip(covariance_matrix, lambda_od, lambda_d):
     Returns:
       dip_regularizer: Regularized deviation from diagonal of covariance_matrix.
     """
-    covariance_matrix_diagonal = tf.diag_part(covariance_matrix)
-    covariance_matrix_off_diagonal = covariance_matrix - tf.diag(
+    covariance_matrix_diagonal = torch.diagonal(covariance_matrix)
+    covariance_matrix_off_diagonal = covariance_matrix - torch.diag(
         covariance_matrix_diagonal)
-    dip_regularizer = tf.add(
-        lambda_od * tf.reduce_sum(covariance_matrix_off_diagonal ** 2),
-        lambda_d * tf.reduce_sum((covariance_matrix_diagonal - 1) ** 2))
+    dip_regularizer = torch.add(
+        lambda_od * torch.sum(covariance_matrix_off_diagonal ** 2),
+        lambda_d * torch.sum((covariance_matrix_diagonal - 1) ** 2))
     return dip_regularizer
 
 
@@ -336,7 +277,7 @@ def regularize_diag_off_diag_dip(covariance_matrix, lambda_od, lambda_d):
 class DIPVAE(BaseVAE):
     """DIPVAE model."""
 
-    def __init__(self,
+    def __init__(self, input_shape,
                  lambda_od=gin.REQUIRED,
                  lambda_d_factor=gin.REQUIRED,
                  dip_type="i"):
@@ -352,6 +293,7 @@ class DIPVAE(BaseVAE):
             lambda_d = lambda_d_factor*lambda_od.
           dip_type: "i" or "ii".
         """
+        super().__init__(input_shape)
         self.lambda_od = lambda_od
         self.lambda_d_factor = lambda_d_factor
         self.dip_type = dip_type
@@ -365,8 +307,8 @@ class DIPVAE(BaseVAE):
             cov_dip_regularizer = regularize_diag_off_diag_dip(
                 cov_z_mean, self.lambda_od, lambda_d)
         elif self.dip_type == "ii":
-            cov_enc = tf.matrix_diag(tf.exp(z_logvar))
-            expectation_cov_enc = tf.reduce_mean(cov_enc, axis=0)
+            cov_enc = torch.diag(torch.exp(z_logvar))
+            expectation_cov_enc = torch.mean(cov_enc, dim=0)
             cov_z = expectation_cov_enc + cov_z_mean
             cov_dip_regularizer = regularize_diag_off_diag_dip(
                 cov_z, self.lambda_od, lambda_d)
@@ -376,9 +318,9 @@ class DIPVAE(BaseVAE):
 
 
 def gaussian_log_density(samples, mean, log_var):
-    pi = tf.constant(math.pi)
-    normalization = tf.log(2. * pi)
-    inv_sigma = tf.exp(-log_var)
+    pi = torch.tensor(math.pi)
+    normalization = torch.log(2. * pi)
+    inv_sigma = torch.exp(-log_var)
     tmp = (samples - mean)
     return -0.5 * (tmp * tmp * inv_sigma + log_var + normalization)
 
@@ -403,29 +345,29 @@ def total_correlation(z, z_mean, z_logvar):
     # tensor of size [batch_size, batch_size, num_latents]. In the following
     # comments, [batch_size, batch_size, num_latents] are indexed by [j, i, l].
     log_qz_prob = gaussian_log_density(
-        tf.expand_dims(z, 1), tf.expand_dims(z_mean, 0),
-        tf.expand_dims(z_logvar, 0))
+        torch.unsqueeze(z, 1), torch.unsqueeze(z_mean, 0),
+        torch.unsqueeze(z_logvar, 0))
     # Compute log prod_l p(z(x_j)_l) = sum_l(log(sum_i(q(z(z_j)_l|x_i)))
     # + constant) for each sample in the batch, which is a vector of size
     # [batch_size,].
-    log_qz_product = tf.reduce_sum(
-        tf.reduce_logsumexp(log_qz_prob, axis=1, keepdims=False),
-        axis=1,
-        keepdims=False)
+    log_qz_product = torch.sum(
+        torch.logsumexp(log_qz_prob, dim=1, keepdim=False),
+        dim=1,
+        keepdim=False)
     # Compute log(q(z(x_j))) as log(sum_i(q(z(x_j)|x_i))) + constant =
     # log(sum_i(prod_l q(z(x_j)_l|x_i))) + constant.
-    log_qz = tf.reduce_logsumexp(
-        tf.reduce_sum(log_qz_prob, axis=2, keepdims=False),
-        axis=1,
-        keepdims=False)
-    return tf.reduce_mean(log_qz - log_qz_product)
+    log_qz = torch.logsumexp(
+        torch.sum(log_qz_prob, dim=2, keepdim=False),
+        dim=1,
+        keepdim=False)
+    return torch.mean(log_qz - log_qz_product)
 
 
 @gin.configurable("beta_tc_vae")
 class BetaTCVAE(BaseVAE):
     """BetaTCVAE model."""
 
-    def __init__(self, beta=gin.REQUIRED):
+    def __init__(self, input_shape, beta=gin.REQUIRED):
         """Creates a beta-TC-VAE model.
 
         Based on Equation 4 with alpha = gamma = 1 of "Isolating Sources of
@@ -436,6 +378,7 @@ class BetaTCVAE(BaseVAE):
         Args:
           beta: Hyperparameter total correlation.
         """
+        super().__init__(input_shape)
         self.beta = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):

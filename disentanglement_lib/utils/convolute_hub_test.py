@@ -20,11 +20,11 @@ from __future__ import print_function
 import os
 from disentanglement_lib.utils import convolute_hub
 import numpy as np
-import tensorflow.compat.v1 as tf
+import torch
 import tensorflow_hub as hub
 
 
-class ConvoluteHubTest(tf.test.TestCase):
+class ConvoluteHubTest(torch.test.TestCase):
 
   def test_convolute(self):
 
@@ -42,9 +42,9 @@ class ConvoluteHubTest(tf.test.TestCase):
     # Save a TFHub module that we will convolute.
     module_path = os.path.join(self.get_temp_dir(), "module_path")
     def module_fn():
-      tensor = tf.placeholder(tf.float64, shape=(None, 10))
-      variable1 = tf.get_variable("variable1", shape=(10, 6), dtype=tf.float64)
-      output = tf.matmul(tensor, variable1)
+        tensor = torch.placeholder(torch.float64, shape=(None, 10))
+        variable1 = torch.get_variable("variable1", shape=(10, 6), dtype=torch.float64)
+        output = torch.matmul(tensor, variable1)
       hub.add_signature(
           name="multiplication1",
           inputs={"tensor": tensor},
@@ -54,8 +54,8 @@ class ConvoluteHubTest(tf.test.TestCase):
 
     # Function used for the convolution.
     def _operation2(tensor):
-      variable2 = tf.get_variable("variable2", shape=(6, 2), dtype=tf.float64)
-      return dict(tensor=tf.matmul(tensor, variable2))
+        variable2 = torch.get_variable("variable2", shape=(6, 2), dtype=torch.float64)
+        return dict(tensor=torch.matmul(tensor, variable2))
 
     # Save the convolution as a new TFHub module
     module_path_new = os.path.join(self.get_temp_dir(), "module_path_new")
@@ -71,4 +71,4 @@ class ConvoluteHubTest(tf.test.TestCase):
 
 
 if __name__ == "__main__":
-  tf.test.main()
+    torch.test.main()

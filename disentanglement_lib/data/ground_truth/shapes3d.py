@@ -22,7 +22,6 @@ from disentanglement_lib.data.ground_truth import ground_truth_data
 from disentanglement_lib.data.ground_truth import util
 import numpy as np
 from six.moves import range
-import tensorflow.compat.v1 as tf
 
 
 SHAPES3D_PATH = os.path.join(
@@ -48,7 +47,7 @@ class Shapes3D(ground_truth_data.GroundTruthData):
   """
 
   def __init__(self):
-    with tf.gfile.GFile(SHAPES3D_PATH, "rb") as f:
+      with open(SHAPES3D_PATH, "rb") as f:
       # Data was saved originally using python2, so we need to set the encoding.
       data = np.load(f, encoding="latin1")
     images = data["images"]

@@ -23,7 +23,7 @@ import os
 from disentanglement_lib.data.ground_truth import ground_truth_data
 from disentanglement_lib.data.ground_truth import util
 import numpy as np
-import tensorflow.compat.v1 as tf
+
 
 
 
@@ -59,36 +59,36 @@ class MPI3D(ground_truth_data.GroundTruthData):
       mpi3d_path = os.path.join(
           os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "mpi3d_toy",
           "mpi3d_toy.npz")
-      if not tf.io.gfile.exists(mpi3d_path):
+      if not os.path.exists(mpi3d_path):
         raise ValueError(
             "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
             .format(mode))
       else:
-        with tf.io.gfile.GFile(mpi3d_path, "rb") as f:
+          with open(mpi3d_path, "rb") as f:
           data = np.load(f)
       self.factor_sizes = [4, 4, 2, 3, 3, 40, 40]
     elif mode == "mpi3d_realistic":
       mpi3d_path = os.path.join(
           os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "mpi3d_realistic",
           "mpi3d_realistic.npz")
-      if not tf.io.gfile.exists(mpi3d_path):
+      if not os.path.exists(mpi3d_path):
         raise ValueError(
             "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
             .format(mode))
       else:
-        with tf.io.gfile.GFile(mpi3d_path, "rb") as f:
+          with open(mpi3d_path, "rb") as f:
           data = np.load(f)
       self.factor_sizes = [4, 4, 2, 3, 3, 40, 40]
     elif mode == "mpi3d_real":
       mpi3d_path = os.path.join(
           os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "mpi3d_real",
           "mpi3d_real.npz")
-      if not tf.io.gfile.exists(mpi3d_path):
+      if not os.path.exists(mpi3d_path):
         raise ValueError(
             "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
             .format(mode))
       else:
-        with tf.io.gfile.GFile(mpi3d_path, "rb") as f:
+          with open(mpi3d_path, "rb") as f:
           data = np.load(f)
       self.factor_sizes = [6, 6, 2, 3, 3, 40, 40]
     else:

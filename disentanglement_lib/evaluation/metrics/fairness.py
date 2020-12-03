@@ -31,7 +31,7 @@ from __future__ import print_function
 from disentanglement_lib.evaluation.metrics import utils
 import numpy as np
 from six.moves import range
-import gin.tf
+import gin
 
 
 @gin.configurable(

@@ -24,9 +24,8 @@ import uuid
 from distutils import dir_util
 import numpy as np
 import simplejson as json
-import tensorflow.compat.v1 as tf
-from tensorflow.compat.v1 import gfile
-import gin.tf
+import torch
+import gin.torch
 
 
 def update_result_directory(result_directory,
@@ -57,8 +56,8 @@ def update_result_directory(result_directory,
     copydir(old_result_directory, result_directory)
   else:
     # Creates the output directory if necessary.
-    if not tf.gfile.IsDirectory(result_directory):
-      tf.gfile.MakeDirs(result_directory)
+    if not os.path.isdir(result_directory):
+      torch.gfile.MakeDirs(result_directory)
 
   # Add unique id to the result dict (useful for obtaining unique runs).
   results_dict["uuid"] = str(uuid.uuid4())
@@ -96,8 +95,8 @@ def copydir(path_to_old_dir, path_to_new_dir):
     path_to_new_dir: String with new directory path.
   """
   directory = os.path.dirname(path_to_new_dir)
-  if not tf.gfile.IsDirectory(directory):
-    tf.gfile.MakeDirs(directory)
+  if not os.path.isdir(directory):
+    torch.gfile.MakeDirs(directory)
   _copy_recursively(path_to_old_dir, path_to_new_dir)
 
 
@@ -109,10 +108,10 @@ def save_gin(config_path):
   """
   # Ensure that the folder exists.
   directory = os.path.dirname(config_path)
-  if not tf.gfile.IsDirectory(directory):
-    tf.gfile.MakeDirs(directory)
+  if not os.path.isdir(directory):
+    torch.gfile.MakeDirs(directory)
   # Save the actual config.
-  with tf.gfile.GFile(config_path, "w") as f:
+  with open(config_path, "w") as f:
     f.write(gin.operative_config_str())
 
 
@@ -140,10 +139,10 @@ def save_dict(config_path, dict_with_info):
   """
   # Ensure that the folder exists.
   directory = os.path.dirname(config_path)
-  if not tf.gfile.IsDirectory(directory):
-    tf.gfile.MakeDirs(directory)
+  if not os.path.isdir(directory):
+    torch.gfile.MakeDirs(directory)
   # Save the actual config.
-  with tf.gfile.GFile(config_path, "w") as f:
+  with open(config_path, "w") as f:
     json.dump(dict_with_info, f, cls=Encoder, indent=2)
 
 
@@ -163,7 +162,7 @@ def gin_dict(config_path=None):
   if config_path is None:
     operative_str = gin.operative_config_str()
   else:
-    with tf.gfile.GFile(config_path, "r") as f:
+    with open(config_path, "r") as f:
       operative_str = f.read()
   for line in operative_str.split("\n"):
     # We need to filter out the auto-generated comments and make sure the line
@@ -217,6 +216,6 @@ def aggregate_json_results(base_path):
     match = compiled_pattern.match(filename)
     if match:
       path = os.path.join(base_path, filename)
-      with tf.gfile.GFile(path, "r") as f:
+      with open(path, "r") as f:
         result[match.group(1)] = json.load(f)
   return namespaced_dict(**result)

@@ -16,16 +16,10 @@
 # Minimal basic configuration to use when testing the training pipeline.
 dataset.name = "dummy_data"
 model.batch_size = 2
-model.model = @vae()
+model.model = @vae
 vae.beta = 1.
-vae_optimizer.optimizer_fn = @AdamOptimizer
 model.training_steps = 2
 model.random_seed=0
-AdamOptimizer.beta1 = 0.9
-AdamOptimizer.beta2 = 0.999
-AdamOptimizer.epsilon = 0.001
-AdamOptimizer.name = 'Adam'
-AdamOptimizer.use_locking = False
 encoder.num_latent = 10
 encoder.encoder_fn = @test_encoder
 decoder.decoder_fn = @test_decoder

@@ -18,48 +18,44 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from absl.testing import parameterized
+from absl.testing import absltest
 from disentanglement_lib.methods.shared import architectures
 import numpy as np
-import tensorflow.compat.v1 as tf
+import torch
 
 
-class ArchitecturesTest(parameterized.TestCase, tf.test.TestCase):
+class ArchitecturesTest(parameterized.TestCase):
 
-  @parameterized.named_parameters(
-      ('fc_encoder', architectures.fc_encoder),
-      ('conv_encoder', architectures.conv_encoder),
-  )
-  def test_encoder(self, encoder_f):
-    minibatch = np.ones(shape=(10, 64, 64, 1), dtype=np.float32)
-    input_tensor = tf.placeholder(tf.float32, shape=(None, 64, 64, 1))
-    latent_mean, latent_logvar = encoder_f(input_tensor, 10)
-    with self.test_session() as sess:
-      sess.run(tf.initialize_all_variables())
-      sess.run(
-          [latent_mean, latent_logvar], feed_dict={input_tensor: minibatch})
+    @parameterized.named_parameters(
+        ('fc_encoder', architectures.fc_encoder),
+        ('conv_encoder', architectures.conv_encoder),
+    )
+    def test_encoder(self, encoder_f):
+        minibatch = np.ones(shape=(10, 1, 64, 64), dtype=np.float32)
+        input_tensor = torch.Tensor(minibatch)
+        encoder = encoder_f([1, 64, 64], 10)
+        latent_mean, latent_logvar = encoder(input_tensor)
 
-  @parameterized.named_parameters(
-      ('fc_decoder', architectures.fc_decoder),
-      ('deconv_decoder', architectures.deconv_decoder),
-  )
-  def test_decoder(self, decoder_f):
-    latent_variable = np.ones(shape=(10, 15), dtype=np.float32)
-    input_tensor = tf.placeholder(tf.float32, shape=(None, 15))
-    images = decoder_f(input_tensor, [64, 64, 1])
-    with self.test_session() as sess:
-      sess.run(tf.initialize_all_variables())
-      sess.run(images, feed_dict={input_tensor: latent_variable})
+    @parameterized.named_parameters(
+        ('fc_decoder', architectures.fc_decoder),
+        ('deconv_decoder', architectures.deconv_decoder),
+    )
+    def test_decoder(self, decoder_f):
+        latent_variable = np.ones(shape=(10, 15), dtype=np.float32)
+        input_tensor = torch.Tensor(latent_variable)
+        decoder = decoder_f(15, [1, 64, 64])
+        images = decoder(input_tensor)
 
-  @parameterized.named_parameters(
-      ('fc_discriminator', architectures.fc_discriminator),
-  )
-  def test_discriminator(self, discriminator_f):
-    images = np.ones(shape=(32, 10), dtype=np.float32)
-    input_tensor = tf.placeholder(tf.float32, shape=(None, 10))
-    logits, probs = discriminator_f(input_tensor)
-    with self.test_session() as sess:
-      sess.run(tf.initialize_all_variables())
-      sess.run([logits, probs], feed_dict={input_tensor: images})
+    @parameterized.named_parameters(
+        ('fc_discriminator', architectures.fc_discriminator),
+    )
+    def test_discriminator(self, discriminator_f):
+        images = np.ones(shape=(32, 10), dtype=np.float32)
+        input_tensor = torch.Tensor(images)
+        discriminator = discriminator_f(10)
+        logits, probs = discriminator(input_tensor)
+
+
 
 if __name__ == '__main__':
-  tf.test.main()
+    absltest.main()

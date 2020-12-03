@@ -18,62 +18,60 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import numpy as np
-import tensorflow.compat.v1 as tf
-import tensorflow_probability as tfp
+import torch
+import torch.nn.functional as F
+import gin.torch
 
-import gin.tf
 
-
-@gin.configurable("bernoulli_loss", whitelist=["subtract_true_image_entropy"])
+@gin.configurable("bernoulli_loss", allowlist=["subtract_true_image_entropy"])
 def bernoulli_loss(true_images,
                    reconstructed_images,
                    activation,
                    subtract_true_image_entropy=False):
-  """Computes the Bernoulli loss."""
-  flattened_dim = np.prod(true_images.get_shape().as_list()[1:])
-  reconstructed_images = tf.reshape(
-      reconstructed_images, shape=[-1, flattened_dim])
-  true_images = tf.reshape(true_images, shape=[-1, flattened_dim])
+    """Computes the Bernoulli loss. A vector on the batch."""
+    img_size = np.prod(true_images.shape[1:])
+    reconstructed_images = reconstructed_images.reshape(-1, img_size)
+    true_images = true_images.reshape(-1, img_size)
 
-  # Because true images are not binary, the lower bound in the xent is not zero:
-  # the lower bound in the xent is the entropy of the true images.
-  if subtract_true_image_entropy:
-    dist = tfp.distributions.Bernoulli(
-        probs=tf.clip_by_value(true_images, 1e-6, 1 - 1e-6))
-    loss_lower_bound = tf.reduce_sum(dist.entropy(), axis=1)
-  else:
-    loss_lower_bound = 0
+    # Because true images are not binary, the lower bound in the xent is not zero:
+    # the lower bound in the xent is the entropy of the true images.？
+    if subtract_true_image_entropy:
+        dist = torch.distributions.Bernoulli(
+            probs=torch.clamp(true_images, 1e-6, 1 - 1e-6))
 
-  if activation == "logits":
-    loss = tf.reduce_sum(
-        tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=reconstructed_images, labels=true_images),
-        axis=1)
-  elif activation == "tanh":
-    reconstructed_images = tf.clip_by_value(
-        tf.nn.tanh(reconstructed_images) / 2 + 0.5, 1e-6, 1 - 1e-6)
-    loss = -tf.reduce_sum(
-        true_images * tf.log(reconstructed_images) +
-        (1 - true_images) * tf.log(1 - reconstructed_images),
-        axis=1)
-  else:
-    raise NotImplementedError("Activation not supported.")
+        loss_lower_bound = dist.entropy().sum(1)
+    else:
+        loss_lower_bound = 0
 
-  return loss - loss_lower_bound
+    if activation == "logits":
+        loss = F.binary_cross_entropy_with_logits(reconstructed_images,
+                                                  true_images,
+                                                  reduction="none").sum(1)
+    elif activation == "tanh":
+        reconstructed_images = torch.clamp(
+            F.tanh(reconstructed_images) / 2 + 0.5, 1e-6, 1 - 1e-6)
+        loss = -torch.sum(
+            true_images * torch.log(reconstructed_images) +
+            (1 - true_images) * torch.log(1 - reconstructed_images),
+            dim=1)
+    else:
+        raise NotImplementedError("Activation not supported.")
+
+    return loss - loss_lower_bound
 
 
-@gin.configurable("l2_loss", whitelist=[])
+@gin.configurable("l2_loss", allowlist=[])
 def l2_loss(true_images, reconstructed_images, activation):
-  """Computes the l2 loss."""
-  if activation == "logits":
-    return tf.reduce_sum(
-        tf.square(true_images - tf.nn.sigmoid(reconstructed_images)), [1, 2, 3])
-  elif activation == "tanh":
-    reconstructed_images = tf.nn.tanh(reconstructed_images) / 2 + 0.5
-    return tf.reduce_sum(
-        tf.square(true_images - reconstructed_images), [1, 2, 3])
-  else:
-    raise NotImplementedError("Activation not supported.")
+    """Computes the l2 loss."""
+    if activation == "logits":
+        return torch.sum(
+            torch.square(true_images - torch.sigmoid(reconstructed_images)), [1, 2, 3])
+    elif activation == "tanh":
+        reconstructed_images = torch.tanh(reconstructed_images) / 2 + 0.5
+        return torch.sum(
+            torch.square(true_images - reconstructed_images), [1, 2, 3])
+    else:
+        raise NotImplementedError("Activation not supported.")
 
 
 @gin.configurable(
@@ -82,7 +80,27 @@ def make_reconstruction_loss(true_images,
                              reconstructed_images,
                              loss_fn=gin.REQUIRED,
                              activation="logits"):
-  """Wrapper that creates reconstruction loss."""
-  with tf.variable_scope("reconstruction_loss"):
+    """Wrapper that creates reconstruction loss."""
     per_sample_loss = loss_fn(true_images, reconstructed_images, activation)
-  return per_sample_loss
+    return per_sample_loss
+
+
+def kl_normal_loss(mean, logvar, mean_dim=None):
+    """
+    Calculates the KL divergence between a normal distribution
+    with diagonal covariance and a unit normal distribution.
+
+    Parameters
+    ----------
+    mean : torch.Tensor
+        Mean of the normal distribution. Shape (batch_size, latent_dim) where
+        D is dimension of distribution.
+
+    logvar : torch.Tensor
+        Diagonal log variance of the normal distribution. Shape (batch_size,
+        latent_dim)
+    """
+    if mean_dim is None:
+        mean_dim = [0]
+    latent_kl = 0.5 * (-1 - logvar + mean.pow(2) + logvar.exp()).mean(dim=mean_dim)
+    return latent_kl

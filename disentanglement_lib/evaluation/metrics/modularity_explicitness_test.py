@@ -22,7 +22,7 @@ from disentanglement_lib.data.ground_truth import dummy_data
 from disentanglement_lib.evaluation.metrics import modularity_explicitness
 import numpy as np
 from six.moves import range
-import gin.tf
+import gin
 
 
 def _identity_discretizer(target, num_bins):

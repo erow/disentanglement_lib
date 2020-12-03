@@ -17,11 +17,13 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import glob
 import multiprocessing
 from absl import logging
 import pandas as pd
 import simplejson as json
-from tensorflow.compat.v1 import gfile
+
 
 
 def aggregate_results_to_json(result_file_pattern, output_path):
@@ -35,7 +37,7 @@ def aggregate_results_to_json(result_file_pattern, output_path):
   logging.info("Loading the results.")
   model_results = _get(result_file_pattern)
   logging.info("Saving the aggregated results.")
-  with gfile.Open(output_path, "w") as f:
+  with open(output_path, "w") as f:
     model_results.to_json(path_or_buf=f)
 
 
@@ -54,14 +56,14 @@ def load_aggregated_json_results(source_path):
 
 
 def _load(path):
-  with gfile.GFile(path) as f:
+    with open(path) as f:
     result = json.load(f)
   result["path"] = path
   return result
 
 
 def _get(pattern):
-  files = gfile.Glob(pattern)
+    files = glob.glob(pattern)
   pool = multiprocessing.Pool()
   all_results = pool.map(_load, files)
   return pd.DataFrame(all_results)
