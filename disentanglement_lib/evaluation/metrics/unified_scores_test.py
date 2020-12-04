@@ -30,81 +30,87 @@ import gin
 
 
 def _identity_discretizer(target, num_bins):
-  del num_bins
-  return target
+    del num_bins
+    return target
 
 
 class UnifiedScoreTest(absltest.TestCase):
 
-  def test_metric_mig(self):
-    gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
-    gin.bind_parameter("discretizer.num_bins", 10)
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    representation_function = lambda x: np.array(x, dtype=np.float64)
-    random_state = np.random.RandomState(0)
-    scores = unified_scores.compute_unified_scores(
-        ground_truth_data, representation_function, random_state, None, 10000,
-        100, matrix_fns=[unified_scores.mutual_information_matrix])
-    self.assertBetween(
-        scores["mutual_information_matrix.mig"], 0.9, 1.0)
-    self.assertBetween(
-        scores["mutual_information_matrix.modularity"], 0.9, 1.0)
+    def test_metric_mig(self):
+        gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
+        gin.bind_parameter("discretizer.num_bins", 10)
+        ground_truth_data = dummy_data.IdentityObservationsData()
+        representation_function = lambda x: np.array(x, dtype=np.float64)
+        random_state = np.random.RandomState(0)
+        scores = unified_scores.compute_unified_scores(
+            ground_truth_data, representation_function, random_state, None, 10000,
+            100, matrix_fns=[unified_scores.mutual_information_matrix])
+        self.assertBetween(
+            scores["mutual_information_matrix.mig"], 0.9, 1.0)
+        self.assertBetween(
+            scores["mutual_information_matrix.modularity"], 0.9, 1.0)
 
-  def test_metric_dci(self):
-    gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
-    gin.bind_parameter("discretizer.num_bins", 10)
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    representation_function = lambda x: np.array(x, dtype=np.float64)
-    random_state = np.random.RandomState(0)
-    scores = unified_scores.compute_unified_scores(
-        ground_truth_data, representation_function, random_state, None, 10000,
-        100, matrix_fns=[unified_scores.importance_gbt_matrix])
-    self.assertBetween(
-        scores["importance_gbt_matrix.dci_disentanglement"], 0.9, 1.0)
+    def test_metric_dci(self):
+        gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
+        gin.bind_parameter("discretizer.num_bins", 10)
+        ground_truth_data = dummy_data.IdentityObservationsData()
+        representation_function = lambda x: np.array(x, dtype=np.float64)
+        random_state = np.random.RandomState(0)
+        scores = unified_scores.compute_unified_scores(
+            ground_truth_data, representation_function, random_state, None, 10000,
+            100, matrix_fns=[unified_scores.importance_gbt_matrix])
+        self.assertBetween(
+            scores["importance_gbt_matrix.dci_disentanglement"], 0.9, 1.0)
 
-  def test_duplicated_latent_space_mig(self):
-    gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
-    gin.bind_parameter("discretizer.num_bins", 10)
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    def representation_function(x):
-      x = np.array(x, dtype=np.float64)
-      return np.hstack([x, x])
-    random_state = np.random.RandomState(0)
-    scores = unified_scores.compute_unified_scores(
-        ground_truth_data, representation_function, random_state, None, 1000,
-        1000, matrix_fns=[unified_scores.mutual_information_matrix])
-    self.assertBetween(
-        scores["mutual_information_matrix.mig"], 0.0, 0.2)
-    self.assertBetween(
-        scores["mutual_information_matrix.modularity"], 0.9, 1.0)
+    def test_duplicated_latent_space_mig(self):
+        gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
+        gin.bind_parameter("discretizer.num_bins", 10)
+        ground_truth_data = dummy_data.IdentityObservationsData()
 
-  def test_duplicated_latent_space_dci(self):
-    gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
-    gin.bind_parameter("discretizer.num_bins", 10)
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    def representation_function(x):
-      x = np.array(x, dtype=np.float64)
-      return np.hstack([x, x])
-    random_state = np.random.RandomState(0)
-    scores = unified_scores.compute_unified_scores(
-        ground_truth_data, representation_function, random_state, None, 1000,
-        1000, matrix_fns=[unified_scores.importance_gbt_matrix])
-    self.assertBetween(
-        scores["importance_gbt_matrix.dci_disentanglement"], 0.9, 1.0)
+        def representation_function(x):
+            x = np.array(x, dtype=np.float64)
+            return np.hstack([x, x])
 
-  def test_duplicated_latent_space_sap(self):
-    gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
-    gin.bind_parameter("discretizer.num_bins", 10)
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    def representation_function(x):
-      x = np.array(x, dtype=np.float64)
-      return np.hstack([x, x])
-    random_state = np.random.RandomState(0)
-    scores = unified_scores.compute_unified_scores(
-        ground_truth_data, representation_function, random_state, None, 1000,
-        1000, matrix_fns=[unified_scores.accuracy_svm_matrix])
-    self.assertBetween(scores["accuracy_svm_matrix.sap"], 0.0, 0.2)
+        random_state = np.random.RandomState(0)
+        scores = unified_scores.compute_unified_scores(
+            ground_truth_data, representation_function, random_state, None, 1000,
+            1000, matrix_fns=[unified_scores.mutual_information_matrix])
+        self.assertBetween(
+            scores["mutual_information_matrix.mig"], 0.0, 0.2)
+        self.assertBetween(
+            scores["mutual_information_matrix.modularity"], 0.9, 1.0)
+
+    def test_duplicated_latent_space_dci(self):
+        gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
+        gin.bind_parameter("discretizer.num_bins", 10)
+        ground_truth_data = dummy_data.IdentityObservationsData()
+
+        def representation_function(x):
+            x = np.array(x, dtype=np.float64)
+            return np.hstack([x, x])
+
+        random_state = np.random.RandomState(0)
+        scores = unified_scores.compute_unified_scores(
+            ground_truth_data, representation_function, random_state, None, 1000,
+            1000, matrix_fns=[unified_scores.importance_gbt_matrix])
+        self.assertBetween(
+            scores["importance_gbt_matrix.dci_disentanglement"], 0.9, 1.0)
+
+    def test_duplicated_latent_space_sap(self):
+        gin.bind_parameter("discretizer.discretizer_fn", _identity_discretizer)
+        gin.bind_parameter("discretizer.num_bins", 10)
+        ground_truth_data = dummy_data.IdentityObservationsData()
+
+        def representation_function(x):
+            x = np.array(x, dtype=np.float64)
+            return np.hstack([x, x])
+
+        random_state = np.random.RandomState(0)
+        scores = unified_scores.compute_unified_scores(
+            ground_truth_data, representation_function, random_state, None, 1000,
+            1000, matrix_fns=[unified_scores.accuracy_svm_matrix])
+        self.assertBetween(scores["accuracy_svm_matrix.sap"], 0.0, 0.2)
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

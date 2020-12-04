@@ -75,7 +75,7 @@ def l2_loss(true_images, reconstructed_images, activation):
 
 
 @gin.configurable(
-    "reconstruction_loss", blacklist=["true_images", "reconstructed_images"])
+    "reconstruction_loss", deneylist=["true_images", "reconstructed_images"])
 def make_reconstruction_loss(true_images,
                              reconstructed_images,
                              loss_fn=gin.REQUIRED,

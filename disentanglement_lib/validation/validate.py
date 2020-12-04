@@ -50,30 +50,30 @@ def validate_with_gin(model_dir,
                       overwrite=False,
                       gin_config_files=None,
                       gin_bindings=None):
-  """Validate a representation based on the provided gin configuration.
+    """Validate a representation based on the provided gin configuration.
 
-  This function will set the provided gin bindings, call the evaluate()
-  function and clear the gin config. Please see the evaluate() for required
-  gin bindings.
+    This function will set the provided gin bindings, call the evaluate()
+    function and clear the gin config. Please see the evaluate() for required
+    gin bindings.
 
-  Args:
-    model_dir: String with path to directory where the representation is saved.
-    output_dir: String with the path where the evaluation should be saved.
-    overwrite: Boolean indicating whether to overwrite output directory.
-    gin_config_files: List of gin config files to load.
-    gin_bindings: List of gin bindings to use.
-  """
-  if gin_config_files is None:
-    gin_config_files = []
-  if gin_bindings is None:
-    gin_bindings = []
-  gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
-  validate(model_dir, output_dir, overwrite)
-  gin.clear_config()
+    Args:
+      model_dir: String with path to directory where the representation is saved.
+      output_dir: String with the path where the evaluation should be saved.
+      overwrite: Boolean indicating whether to overwrite output directory.
+      gin_config_files: List of gin config files to load.
+      gin_bindings: List of gin bindings to use.
+    """
+    if gin_config_files is None:
+        gin_config_files = []
+    if gin_bindings is None:
+        gin_bindings = []
+    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+    validate(model_dir, output_dir, overwrite)
+    gin.clear_config()
 
 
 @gin.configurable(
-    "validation", blacklist=["model_dir", "output_dir", "overwrite"])
+    "validation", deneylist=["model_dir", "output_dir", "overwrite"])
 def validate(model_dir,
              output_dir,
              overwrite=False,
@@ -81,63 +81,63 @@ def validate(model_dir,
              random_seed=gin.REQUIRED,
              num_labelled_samples=gin.REQUIRED,
              name=""):
-  """Loads a representation TFHub module and computes disentanglement metrics.
+    """Loads a representation TFHub module and computes disentanglement metrics.
 
-  Args:
-    model_dir: String with path to directory where the representation function
-      is saved.
-    output_dir: String with the path where the results should be saved.
-    overwrite: Boolean indicating whether to overwrite output directory.
-    validation_fn: Function used to validate the representation (see metrics/
-      for examples).
-    random_seed: Integer with random seed used for training.
-    num_labelled_samples: How many labelled samples are available.
-    name: Optional string with name of the metric (can be used to name metrics).
-  """
-  # We do not use the variable 'name'. Instead, it can be used to name scores
-  # as it will be part of the saved gin config.
-  del name
+    Args:
+      model_dir: String with path to directory where the representation function
+        is saved.
+      output_dir: String with the path where the results should be saved.
+      overwrite: Boolean indicating whether to overwrite output directory.
+      validation_fn: Function used to validate the representation (see metrics/
+        for examples).
+      random_seed: Integer with random seed used for training.
+      num_labelled_samples: How many labelled samples are available.
+      name: Optional string with name of the metric (can be used to name metrics).
+    """
+    # We do not use the variable 'name'. Instead, it can be used to name scores
+    # as it will be part of the saved gin config.
+    del name
 
-  # Delete the output directory if it already exists.
-  if os.path.isdir(output_dir):
-    if overwrite:
-        shutil.rmtree(output_dir)
-    else:
-      raise ValueError("Directory already exists and overwrite is False.")
+    # Delete the output directory if it already exists.
+    if os.path.isdir(output_dir):
+        if overwrite:
+            shutil.rmtree(output_dir)
+        else:
+            raise ValueError("Directory already exists and overwrite is False.")
 
-  # Set up time to keep track of elapsed time in results.
-  experiment_timer = time.time()
+    # Set up time to keep track of elapsed time in results.
+    experiment_timer = time.time()
 
-  # Automatically set the proper data set if necessary. We replace the active
-  # gin config as this will lead to a valid gin config file where the data set
-  # is present.
-  if gin.query_parameter("dataset.name") == "auto":
-    # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin",
-                                   "postprocess.gin")
-    gin_dict = results.gin_dict(gin_config_file)
-    with gin.unlock_config():
-      gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
-          "'", ""))
-  dataset = named_data.get_named_ground_truth_data()
-  observations, labels, _ = semi_supervised_utils.sample_supervised_data(
-      random_seed, dataset, num_labelled_samples)
-  # Path to TFHub module of previously trained representation.
-  module_path = os.path.join(model_dir, "tfhub")
-  with hub.eval_function_for_module(module_path) as f:
+    # Automatically set the proper data set if necessary. We replace the active
+    # gin config as this will lead to a valid gin config file where the data set
+    # is present.
+    if gin.query_parameter("dataset.name") == "auto":
+        # Obtain the dataset name from the gin config of the previous step.
+        gin_config_file = os.path.join(model_dir, "results", "gin",
+                                       "postprocess.gin")
+        gin_dict = results.gin_dict(gin_config_file)
+        with gin.unlock_config():
+            gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
+                "'", ""))
+    dataset = named_data.get_named_ground_truth_data()
+    observations, labels, _ = semi_supervised_utils.sample_supervised_data(
+        random_seed, dataset, num_labelled_samples)
+    # Path to TFHub module of previously trained representation.
+    module_path = os.path.join(model_dir, "tfhub")
+    with hub.eval_function_for_module(module_path) as f:
 
-    def _representation_function(x):
-      """Computes representation vector for input images."""
-      output = f(dict(images=x), signature="representation", as_dict=True)
-      return np.array(output["default"])
+        def _representation_function(x):
+            """Computes representation vector for input images."""
+            output = f(dict(images=x), signature="representation", as_dict=True)
+            return np.array(output["default"])
 
-    # Computes scores of the representation based on the evaluation_fn.
-    results_dict = validation_fn(observations, np.transpose(labels),
-                                 _representation_function)
+        # Computes scores of the representation based on the evaluation_fn.
+        results_dict = validation_fn(observations, np.transpose(labels),
+                                     _representation_function)
 
-  # Save the results (and all previous results in the pipeline) on disk.
-  original_results_dir = os.path.join(model_dir, "results")
-  results_dir = os.path.join(output_dir, "results")
-  results_dict["elapsed_time"] = time.time() - experiment_timer
-  results.update_result_directory(results_dir, "validation", results_dict,
-                                  original_results_dir)
+    # Save the results (and all previous results in the pipeline) on disk.
+    original_results_dir = os.path.join(model_dir, "results")
+    results_dir = os.path.join(output_dir, "results")
+    results_dict["elapsed_time"] = time.time() - experiment_timer
+    results.update_result_directory(results_dir, "validation", results_dict,
+                                    original_results_dir)

@@ -26,48 +26,49 @@ import tensorflow_hub as hub
 
 class ConvoluteHubTest(torch.test.TestCase):
 
-  def test_convolute(self):
+    def test_convolute(self):
+        # Create variables to use.
+        random_state = np.random.RandomState(0)
+        data = random_state.normal(size=(5, 10))
+        variable1 = random_state.normal(size=(10, 6))
+        variable2 = random_state.normal(size=(6, 2))
 
-    # Create variables to use.
-    random_state = np.random.RandomState(0)
-    data = random_state.normal(size=(5, 10))
-    variable1 = random_state.normal(size=(10, 6))
-    variable2 = random_state.normal(size=(6, 2))
+        # Save variables to checkpoint.
+        checkpoint_path = os.path.join(self.get_temp_dir(), "checkpoint.ckpt")
+        convolute_hub.save_numpy_arrays_to_checkpoint(
+            checkpoint_path, variable1=variable1, variable2=variable2)
 
-    # Save variables to checkpoint.
-    checkpoint_path = os.path.join(self.get_temp_dir(), "checkpoint.ckpt")
-    convolute_hub.save_numpy_arrays_to_checkpoint(
-        checkpoint_path, variable1=variable1, variable2=variable2)
+        # Save a TFHub module that we will convolute.
+        module_path = os.path.join(self.get_temp_dir(), "module_path")
 
-    # Save a TFHub module that we will convolute.
-    module_path = os.path.join(self.get_temp_dir(), "module_path")
-    def module_fn():
-        tensor = torch.placeholder(torch.float64, shape=(None, 10))
-        variable1 = torch.get_variable("variable1", shape=(10, 6), dtype=torch.float64)
-        output = torch.matmul(tensor, variable1)
-      hub.add_signature(
-          name="multiplication1",
-          inputs={"tensor": tensor},
-          outputs={"tensor": output})
-    spec = hub.create_module_spec(module_fn)
-    spec.export(module_path, checkpoint_path=checkpoint_path)
+        def module_fn():
+            tensor = torch.placeholder(torch.float64, shape=(None, 10))
+            variable1 = torch.get_variable("variable1", shape=(10, 6), dtype=torch.float64)
+            output = torch.matmul(tensor, variable1)
 
-    # Function used for the convolution.
-    def _operation2(tensor):
-        variable2 = torch.get_variable("variable2", shape=(6, 2), dtype=torch.float64)
-        return dict(tensor=torch.matmul(tensor, variable2))
+        hub.add_signature(
+            name="multiplication1",
+            inputs={"tensor": tensor},
+            outputs={"tensor": output})
+        spec = hub.create_module_spec(module_fn)
+        spec.export(module_path, checkpoint_path=checkpoint_path)
 
-    # Save the convolution as a new TFHub module
-    module_path_new = os.path.join(self.get_temp_dir(), "module_path_new")
-    convolute_hub.convolute_and_save(module_path, "multiplication1",
-                                     module_path_new, _operation2,
-                                     checkpoint_path, "convoluted")
+        # Function used for the convolution.
+        def _operation2(tensor):
+            variable2 = torch.get_variable("variable2", shape=(6, 2), dtype=torch.float64)
+            return dict(tensor=torch.matmul(tensor, variable2))
 
-    # Check the first signature.
-    with hub.eval_function_for_module(module_path_new) as f:
-      module_result = f(dict(tensor=data), signature="convoluted", as_dict=True)
-    real_result = data.dot(variable1).dot(variable2)
-    self.assertAllClose(real_result, module_result["tensor"])
+        # Save the convolution as a new TFHub module
+        module_path_new = os.path.join(self.get_temp_dir(), "module_path_new")
+        convolute_hub.convolute_and_save(module_path, "multiplication1",
+                                         module_path_new, _operation2,
+                                         checkpoint_path, "convoluted")
+
+        # Check the first signature.
+        with hub.eval_function_for_module(module_path_new) as f:
+            module_result = f(dict(tensor=data), signature="convoluted", as_dict=True)
+        real_result = data.dot(variable1).dot(variable2)
+        self.assertAllClose(real_result, module_result["tensor"])
 
 
 if __name__ == "__main__":

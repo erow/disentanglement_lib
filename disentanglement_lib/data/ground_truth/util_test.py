@@ -27,20 +27,20 @@ from six.moves import range
 
 class UtilTest(parameterized.TestCase):
 
-  def test_tfdata(self):
-    ground_truth_data = dummy_data.DummyData()
-    dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data, 0)
-    one_shot_iterator = dataset.make_one_shot_iterator()
-    next_element = one_shot_iterator.get_next()
+    def test_tfdata(self):
+        ground_truth_data = dummy_data.DummyData()
+        dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data, 0)
+        one_shot_iterator = dataset.make_one_shot_iterator()
+        next_element = one_shot_iterator.get_next()
 
 
 class StateSpaceAtomIndexTest(parameterized.TestCase):
 
-  def test(self):
-    features = np.array([[0, 1], [1, 0], [1, 1], [0, 0]], dtype=np.int64)
-    state_space_atom_index = util.StateSpaceAtomIndex([2, 2], features)
-    self.assertEquals(
-        state_space_atom_index.features_to_index(features), list(range(4)))
+    def test(self):
+        features = np.array([[0, 1], [1, 0], [1, 1], [0, 0]], dtype=np.int64)
+        state_space_atom_index = util.StateSpaceAtomIndex([2, 2], features)
+        self.assertEquals(
+            state_space_atom_index.features_to_index(features), list(range(4)))
 
 
 if __name__ == '__main__':

@@ -25,47 +25,48 @@ import pandas as pd
 import simplejson as json
 
 
-
 def aggregate_results_to_json(result_file_pattern, output_path):
-  """Aggregates all the results files in the pattern into a single JSON file.
+    """Aggregates all the results files in the pattern into a single JSON file.
 
-  Args:
-    result_file_pattern: String with glob pattern to all the result files that
-      should be aggregated (e.g. /tmp/*/results/aggregate/evaluation.json).
-    output_path: String with path to output json file (e.g. /tmp/results.json).
-  """
-  logging.info("Loading the results.")
-  model_results = _get(result_file_pattern)
-  logging.info("Saving the aggregated results.")
-  with open(output_path, "w") as f:
-    model_results.to_json(path_or_buf=f)
+    Args:
+      result_file_pattern: String with glob pattern to all the result files that
+        should be aggregated (e.g. /tmp/*/results/aggregate/evaluation.json).
+      output_path: String with path to output json file (e.g. /tmp/results.json).
+    """
+    logging.info("Loading the results.")
+    model_results = _get(result_file_pattern)
+    logging.info("Saving the aggregated results.")
+    with open(output_path, "w") as f:
+        model_results.to_json(path_or_buf=f)
 
 
 def load_aggregated_json_results(source_path):
-  """Convenience function to load aggregated results from JSON file.
+    """Convenience function to load aggregated results from JSON file.
 
-  Args:
-    source_path: String with path to aggregated json file (e.g.
-      /tmp/results.json).
+    Args:
+      source_path: String with path to aggregated json file (e.g.
+        /tmp/results.json).
 
-  Returns:
-    pd.DataFrame with aggregated results.
-  """
-  logging.info("Loading the aggregated results.")
-  return pd.read_json(path_or_buf=source_path, orient="columns")
+    Returns:
+      pd.DataFrame with aggregated results.
+    """
+    logging.info("Loading the aggregated results.")
+    return pd.read_json(path_or_buf=source_path, orient="columns")
 
 
 def _load(path):
     with open(path) as f:
-    result = json.load(f)
-  result["path"] = path
-  return result
+        result = json.load(f)
+
+
+result["path"] = path
+return result
 
 
 def _get(pattern):
     files = glob.glob(pattern)
-  pool = multiprocessing.Pool()
-  all_results = pool.map(_load, files)
-  return pd.DataFrame(all_results)
 
 
+pool = multiprocessing.Pool()
+all_results = pool.map(_load, files)
+return pd.DataFrame(all_results)

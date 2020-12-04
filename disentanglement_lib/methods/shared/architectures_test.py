@@ -56,6 +56,5 @@ class ArchitecturesTest(parameterized.TestCase):
         logits, probs = discriminator(input_tensor)
 
 
-
 if __name__ == '__main__':
     absltest.main()

@@ -34,4 +34,4 @@ export_as_tf_hub.drop_collections = None
 
 # Parameters for model:
 # ==============================================================================
-model.model = @vae()
+model.model = @vae

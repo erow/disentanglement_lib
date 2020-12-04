@@ -28,27 +28,27 @@ MODEL_CONFIG_PATH = "../config/tests/methods/unsupervised/train_test.gin"
 
 class VisualizeTest(parameterized.TestCase):
 
-  @parameterized.parameters(
-      ("logits"),
-      ("tanh"),
-  )
-  def test_visualize_sigmoid(self, activation):
-    activation_binding = (
-        "reconstruction_loss.activation = '{}'".format(activation))
-    self.model_dir = self.create_tempdir(
-        "model_{}".format(activation),
-        cleanup=absltest.TempFileCleanup.OFF).full_path
-    train.train_with_gin(self.model_dir, True, [
-        resources.get_file("config/tests/methods/unsupervised/train_test.gin")
-    ], [activation_binding])
-    visualize_model.visualize(
-        self.model_dir,
-        self.create_tempdir("visualization_{}".format(activation)).full_path,
-        True,
-        num_animations=1,
-        num_frames=4,
-        num_points_irs=100)
+    @parameterized.parameters(
+        ("logits"),
+        ("tanh"),
+    )
+    def test_visualize_sigmoid(self, activation):
+        activation_binding = (
+            "reconstruction_loss.activation = '{}'".format(activation))
+        self.model_dir = self.create_tempdir(
+            "model_{}".format(activation),
+            cleanup=absltest.TempFileCleanup.OFF).full_path
+        train.train_with_gin(self.model_dir, True, [
+            resources.get_file("config/tests/methods/unsupervised/train_test.gin")
+        ], [activation_binding])
+        visualize_model.visualize(
+            self.model_dir,
+            self.create_tempdir("visualization_{}".format(activation)).full_path,
+            True,
+            num_animations=1,
+            num_frames=4,
+            num_points_irs=100)
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

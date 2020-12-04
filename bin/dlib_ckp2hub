@@ -37,7 +37,7 @@ flags.DEFINE_string("input_dir", None, "Directory to take trained "
 flags.DEFINE_integer("checkpoint", 0, "Directory to save scores to.")
 
 
-@gin.configurable("model", blacklist=[])
+@gin.configurable("model", deneylist=[])
 def model(model=gin.REQUIRED):
     model_dir = FLAGS.input_dir
     checkpoint = FLAGS.checkpoint

@@ -28,32 +28,32 @@ import gin
 
 class EvaluateTest(parameterized.TestCase):
 
-  def setUp(self):
-    super(EvaluateTest, self).setUp()
-    self.model_dir = self.create_tempdir(
-        "model", cleanup=absltest.TempFileCleanup.OFF).full_path
-    model_config = resources.get_file(
-        "config/tests/methods/unsupervised/train_test.gin")
-    train.train_with_gin(self.model_dir, True, [model_config])
-    self.output_dir = self.create_tempdir(
-        "output", cleanup=absltest.TempFileCleanup.OFF).full_path
-    postprocess_config = resources.get_file(
-        "config/tests/postprocessing/postprocess_test_configs/mean.gin")
-    postprocess.postprocess_with_gin(self.model_dir, self.output_dir, True,
-                                     [postprocess_config])
+    def setUp(self):
+        super(EvaluateTest, self).setUp()
+        self.model_dir = self.create_tempdir(
+            "model", cleanup=absltest.TempFileCleanup.OFF).full_path
+        model_config = resources.get_file(
+            "config/tests/methods/unsupervised/train_test.gin")
+        train.train_with_gin(self.model_dir, True, [model_config])
+        self.output_dir = self.create_tempdir(
+            "output", cleanup=absltest.TempFileCleanup.OFF).full_path
+        postprocess_config = resources.get_file(
+            "config/tests/postprocessing/postprocess_test_configs/mean.gin")
+        postprocess.postprocess_with_gin(self.model_dir, self.output_dir, True,
+                                         [postprocess_config])
 
-  @parameterized.parameters(
-      list(
-          resources.get_files_in_folder(
-              "config/tests/evaluation/evaluate_test_configs")))
-  def test_evaluate(self, gin_config):
-    # We clear the gin config before running. Otherwise, if a prior test fails,
-    # the gin config is locked and the current test fails.
-    gin.clear_config()
-    evaluate.evaluate_with_gin(self.output_dir,
-                               self.create_tempdir().full_path, True,
-                               [gin_config])
+    @parameterized.parameters(
+        list(
+            resources.get_files_in_folder(
+                "config/tests/evaluation/evaluate_test_configs")))
+    def test_evaluate(self, gin_config):
+        # We clear the gin config before running. Otherwise, if a prior test fails,
+        # the gin config is locked and the current test fails.
+        gin.clear_config()
+        evaluate.evaluate_with_gin(self.output_dir,
+                                   self.create_tempdir().full_path, True,
+                                   [gin_config])
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

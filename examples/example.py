@@ -63,6 +63,8 @@ path_vae = os.path.join(base_path, "vae")
 # training we need to provide a gin config. For a standard VAE, you may have a
 # look at model.gin on how to do this.
 train.train_with_gin(os.path.join(path_vae, "model"), overwrite, ["model.gin"])
+
+
 # After this command, you should have a `vae` subfolder with a model that was
 # trained for a few steps (in reality, you will want to train many more steps).
 
@@ -78,21 +80,21 @@ train.train_with_gin(os.path.join(path_vae, "model"), overwrite, ["model.gin"])
 # plus a custom regularizer (needs to be implemented.)
 @gin.configurable("BottleneckVAE")  # This will allow us to reference the model.
 class BottleneckVAE(vae.BaseVAE):
-  """BottleneckVAE.
+    """BottleneckVAE.
 
-  The loss of this VAE-style model is given by:
-    loss = reconstruction loss + gamma * |KL(app. posterior | prior) - target|
-  """
+    The loss of this VAE-style model is given by:
+      loss = reconstruction loss + gamma * |KL(app. posterior | prior) - target|
+    """
 
-  def __init__(self, gamma=gin.REQUIRED, target=gin.REQUIRED):
-    self.gamma = gamma
-    self.target = target
+    def __init__(self, gamma=gin.REQUIRED, target=gin.REQUIRED):
+        self.gamma = gamma
+        self.target = target
 
-  def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-    # This is how we customize BaseVAE. To learn more, have a look at the
-    # different models in vae.py.
-    del z_mean, z_logvar, z_sampled
-    return self.gamma * tf.math.abs(kl_loss - self.target)
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        # This is how we customize BaseVAE. To learn more, have a look at the
+        # different models in vae.py.
+        del z_mean, z_logvar, z_sampled
+        return self.gamma * tf.math.abs(kl_loss - self.target)
 
 
 # We use the same training protocol that we defined in model.gin but we use gin
@@ -116,12 +118,12 @@ train.train_with_gin(
 # takes as input an image and that outputs a vector with the representation.
 # We extract the mean of the encoder from both models using the following code.
 for path in [path_vae, path_custom_vae]:
-  representation_path = os.path.join(path, "representation")
-  model_path = os.path.join(path, "model")
-  postprocess_gin = ["postprocess.gin"]  # This contains the settings.
-  # postprocess.postprocess_with_gin defines the standard extraction protocol.
-  postprocess.postprocess_with_gin(model_path, representation_path, overwrite,
-                                   postprocess_gin)
+    representation_path = os.path.join(path, "representation")
+    model_path = os.path.join(path, "model")
+    postprocess_gin = ["postprocess.gin"]  # This contains the settings.
+    # postprocess.postprocess_with_gin defines the standard extraction protocol.
+    postprocess.postprocess_with_gin(model_path, representation_path, overwrite,
+                                     postprocess_gin)
 
 # 4. Compute the Mutual Information Gap (already implemented) for both models.
 # ------------------------------------------------------------------------------
@@ -143,10 +145,10 @@ gin_bindings = [
     "discretizer.num_bins = 20"
 ]
 for path in [path_vae, path_custom_vae]:
-  result_path = os.path.join(path, "metrics", "mig")
-  representation_path = os.path.join(path, "representation")
-  evaluate.evaluate_with_gin(
-      representation_path, result_path, overwrite, gin_bindings=gin_bindings)
+    result_path = os.path.join(path, "metrics", "mig")
+    representation_path = os.path.join(path, "representation")
+    evaluate.evaluate_with_gin(
+        representation_path, result_path, overwrite, gin_bindings=gin_bindings)
 
 
 # 5. Compute a custom disentanglement metric for both models.
@@ -156,39 +158,39 @@ for path in [path_vae, path_custom_vae]:
 # evaluation protocol, while all other arguments have to be configured via gin.
 @gin.configurable(
     "custom_metric",
-    blacklist=["ground_truth_data", "representation_function", "random_state"])
+    deneylist=["ground_truth_data", "representation_function", "random_state"])
 def compute_custom_metric(ground_truth_data,
                           representation_function,
                           random_state,
                           num_train=gin.REQUIRED,
                           batch_size=16):
-  """Example of a custom (dummy) metric.
+    """Example of a custom (dummy) metric.
 
-  Preimplemented metrics can be found in disentanglement_lib.evaluation.metrics.
+    Preimplemented metrics can be found in disentanglement_lib.evaluation.metrics.
 
-  Args:
-    ground_truth_data: GroundTruthData to be sampled from.
-    representation_function: Function that takes observations as input and
-      outputs a dim_representation sized representation for each observation.
-    random_state: Numpy random state used for randomness.
-    num_train: Number of points used for training.
-    batch_size: Batch size for sampling.
+    Args:
+      ground_truth_data: GroundTruthData to be sampled from.
+      representation_function: Function that takes observations as input and
+        outputs a dim_representation sized representation for each observation.
+      random_state: Numpy random state used for randomness.
+      num_train: Number of points used for training.
+      batch_size: Batch size for sampling.
 
-  Returns:
-    Dict with disentanglement score.
-  """
-  score_dict = {}
+    Returns:
+      Dict with disentanglement score.
+    """
+    score_dict = {}
 
-  # This is how to obtain the representations of num_train points along with the
-  # ground-truth factors of variation.
-  representation, factors_of_variations = utils.generate_batch_factor_code(
-      ground_truth_data, representation_function, num_train, random_state,
-      batch_size)
-  # We could now compute a metric based on representation and
-  # factors_of_variations. However, for the sake of brevity, we just return 1.
-  del representation, factors_of_variations
-  score_dict["custom_metric"] = 1.
-  return score_dict
+    # This is how to obtain the representations of num_train points along with the
+    # ground-truth factors of variation.
+    representation, factors_of_variations = utils.generate_batch_factor_code(
+        ground_truth_data, representation_function, num_train, random_state,
+        batch_size)
+    # We could now compute a metric based on representation and
+    # factors_of_variations. However, for the sake of brevity, we just return 1.
+    del representation, factors_of_variations
+    score_dict["custom_metric"] = 1.
+    return score_dict
 
 
 # To compute the score, we again call the evaluation protocol with a gin
@@ -200,9 +202,9 @@ gin_bindings = [
     "dataset.name='auto'"
 ]
 for path in [path_vae, path_custom_vae]:
-  result_path = os.path.join(path, "metrics", "custom_metric")
-  evaluate.evaluate_with_gin(
-      representation_path, result_path, overwrite, gin_bindings=gin_bindings)
+    result_path = os.path.join(path, "metrics", "custom_metric")
+    evaluate.evaluate_with_gin(
+        representation_path, result_path, overwrite, gin_bindings=gin_bindings)
 
 # 6. Aggregate the results.
 # ------------------------------------------------------------------------------

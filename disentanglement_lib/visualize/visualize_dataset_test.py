@@ -23,10 +23,10 @@ from disentanglement_lib.visualize import visualize_dataset
 
 class VisualizeDatasetTest(absltest.TestCase):
 
-  def test_visualize(self):
-    visualize_dataset.visualize_dataset("dummy_data",
-                                        self.create_tempdir().full_path)
+    def test_visualize(self):
+        visualize_dataset.visualize_dataset("dummy_data",
+                                            self.create_tempdir().full_path)
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

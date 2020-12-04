@@ -25,34 +25,34 @@ import scipy
 
 class UnsupervisedMetricsTest(absltest.TestCase):
 
-  def test_gaussian_total_correlation_zero(self):
-    score = unsupervised_metrics.gaussian_total_correlation(
-        np.diag(np.ones(5, dtype=np.float64)))
-    self.assertBetween(score, -0.01, 0.01)
+    def test_gaussian_total_correlation_zero(self):
+        score = unsupervised_metrics.gaussian_total_correlation(
+            np.diag(np.ones(5, dtype=np.float64)))
+        self.assertBetween(score, -0.01, 0.01)
 
-  def test_gaussian_total_correlation_same(self):
-    """Check that the results of the both functions are the same."""
-    cov = np.array([[1, 0.9], [0.9, 1.0]], dtype=np.float32)
-    means = np.array([0.0, 0.0], dtype=np.float32)
-    cov_central = np.diag(np.diag(cov))
-    shouldbe = unsupervised_metrics.kl_gaussians_numerically_unstable(
-        means, cov, means, cov_central, 2)
-    score = unsupervised_metrics.gaussian_total_correlation(cov)
-    self.assertBetween(score, shouldbe - 0.01, shouldbe + 0.01)
+    def test_gaussian_total_correlation_same(self):
+        """Check that the results of the both functions are the same."""
+        cov = np.array([[1, 0.9], [0.9, 1.0]], dtype=np.float32)
+        means = np.array([0.0, 0.0], dtype=np.float32)
+        cov_central = np.diag(np.diag(cov))
+        shouldbe = unsupervised_metrics.kl_gaussians_numerically_unstable(
+            means, cov, means, cov_central, 2)
+        score = unsupervised_metrics.gaussian_total_correlation(cov)
+        self.assertBetween(score, shouldbe - 0.01, shouldbe + 0.01)
 
-  def test_gaussian_wasserstein_correlation_zero(self):
-    score = unsupervised_metrics.gaussian_wasserstein_correlation(
-        np.diag(np.ones(5, dtype=np.float64)))
-    self.assertBetween(score, -0.01, 0.01)
+    def test_gaussian_wasserstein_correlation_zero(self):
+        score = unsupervised_metrics.gaussian_wasserstein_correlation(
+            np.diag(np.ones(5, dtype=np.float64)))
+        self.assertBetween(score, -0.01, 0.01)
 
-  def test_gaussian_wasserstein_correlation_same(self):
-    cov = np.array([[1, 0.9], [0.9, 1.0]], dtype=np.float32)
-    score = unsupervised_metrics.gaussian_wasserstein_correlation(cov)
-    cov_only_diagonal = np.diag(np.diag(cov))
-    sqrtm = scipy.linalg.sqrtm(np.matmul(cov, cov_only_diagonal))
-    shouldbe = np.trace(cov + cov_only_diagonal - 2 * sqrtm)
-    self.assertBetween(score, shouldbe - 0.01, shouldbe + 0.01)
+    def test_gaussian_wasserstein_correlation_same(self):
+        cov = np.array([[1, 0.9], [0.9, 1.0]], dtype=np.float32)
+        score = unsupervised_metrics.gaussian_wasserstein_correlation(cov)
+        cov_only_diagonal = np.diag(np.diag(cov))
+        sqrtm = scipy.linalg.sqrtm(np.matmul(cov, cov_only_diagonal))
+        shouldbe = np.trace(cov + cov_only_diagonal - 2 * sqrtm)
+        self.assertBetween(score, shouldbe - 0.01, shouldbe + 0.01)
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

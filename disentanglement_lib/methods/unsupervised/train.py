@@ -47,7 +47,8 @@ class torch_dataset(Dataset):
         observations = observations.permute(0, 3, 1, 2)
         return observations[0], factors
 
-@gin.configurable("model", blacklist=["model_dir", "overwrite"])
+
+@gin.configurable("model", deneylist=["model_dir", "overwrite"])
 def train(model_dir,
           overwrite=False,
           model=gin.REQUIRED,
@@ -104,14 +105,13 @@ def train(model_dir,
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         filename='{global_step:05d}',
         period=save_checkpoints_steps)
-    trainer = pl.Trainer(max_steps=training_steps, num_processes=4, tpu_cores=8,
+    trainer = pl.Trainer(max_steps=training_steps, num_processes=4, gpus=1,
                          default_root_dir=model_dir,
                          callbacks=[checkpoint_callback])
     trainer.fit(autoencoder, dl)
     trainer.save_checkpoint("result.ckpt")
 
     # Save model as a TFHub module.
-
 
     # Save the results. The result dir will contain all the results and config
     # files that we copied along, as we progress in the pipeline. The idea is that

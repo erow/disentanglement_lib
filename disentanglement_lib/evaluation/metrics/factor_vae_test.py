@@ -25,26 +25,26 @@ import numpy as np
 
 class FactorVaeTest(absltest.TestCase):
 
-  def test_metric(self):
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    representation_function = lambda x: x
-    random_state = np.random.RandomState(0)
-    scores = factor_vae.compute_factor_vae(
-        ground_truth_data, representation_function, random_state, None, 5, 3000,
-        2000, 2500)
-    self.assertBetween(scores["train_accuracy"], 0.9, 1.0)
-    self.assertBetween(scores["eval_accuracy"], 0.9, 1.0)
+    def test_metric(self):
+        ground_truth_data = dummy_data.IdentityObservationsData()
+        representation_function = lambda x: x
+        random_state = np.random.RandomState(0)
+        scores = factor_vae.compute_factor_vae(
+            ground_truth_data, representation_function, random_state, None, 5, 3000,
+            2000, 2500)
+        self.assertBetween(scores["train_accuracy"], 0.9, 1.0)
+        self.assertBetween(scores["eval_accuracy"], 0.9, 1.0)
 
-  def test_bad_metric(self):
-    ground_truth_data = dummy_data.IdentityObservationsData()
-    representation_function = np.zeros_like
-    random_state = np.random.RandomState(0)
-    scores = factor_vae.compute_factor_vae(
-        ground_truth_data, representation_function, random_state, None, 5, 3000,
-        2000, 2500)
-    self.assertBetween(scores["train_accuracy"], 0.0, 0.2)
-    self.assertBetween(scores["eval_accuracy"], 0.0, 0.2)
+    def test_bad_metric(self):
+        ground_truth_data = dummy_data.IdentityObservationsData()
+        representation_function = np.zeros_like
+        random_state = np.random.RandomState(0)
+        scores = factor_vae.compute_factor_vae(
+            ground_truth_data, representation_function, random_state, None, 5, 3000,
+            2000, 2500)
+        self.assertBetween(scores["train_accuracy"], 0.0, 0.2)
+        self.assertBetween(scores["eval_accuracy"], 0.0, 0.2)
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

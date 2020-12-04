@@ -22,21 +22,21 @@ from disentanglement_lib.utils import resources
 
 
 class TestStudy(study.Study):
-  """Defines a study for testing."""
+    """Defines a study for testing."""
 
-  def get_model_config(self, model_num=0):
-    """Returns model bindings and config file."""
-    return [], resources.get_file(
-        "config/tests/methods/unsupervised/train_test.gin")
+    def get_model_config(self, model_num=0):
+        """Returns model bindings and config file."""
+        return [], resources.get_file(
+            "config/tests/methods/unsupervised/train_test.gin")
 
-  def get_postprocess_config_files(self):
-    """Returns postprocessing config files."""
-    return list(
-        resources.get_files_in_folder(
-            "config/tests/postprocessing/postprocess_test_configs"))
+    def get_postprocess_config_files(self):
+        """Returns postprocessing config files."""
+        return list(
+            resources.get_files_in_folder(
+                "config/tests/postprocessing/postprocess_test_configs"))
 
-  def get_eval_config_files(self):
-    """Returns evaluation config files."""
-    return list(
-        resources.get_files_in_folder(
-            "config/tests/evaluation/evaluate_test_configs"))
+    def get_eval_config_files(self):
+        """Returns evaluation config files."""
+        return list(
+            resources.get_files_in_folder(
+                "config/tests/evaluation/evaluate_test_configs"))

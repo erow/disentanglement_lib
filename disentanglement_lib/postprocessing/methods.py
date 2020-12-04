@@ -28,62 +28,62 @@ import gin
 
 @gin.configurable(
     "mean_representation",
-    blacklist=["ground_truth_data", "gaussian_encoder", "random_state"])
+    deneylist=["ground_truth_data", "gaussian_encoder", "random_state"])
 def mean_representation(
-    ground_truth_data,
-    gaussian_encoder,
-    random_state,
-    save_path,
+        ground_truth_data,
+        gaussian_encoder,
+        random_state,
+        save_path,
 ):
-  """Extracts the mean representation from a Gaussian encoder.
+    """Extracts the mean representation from a Gaussian encoder.
 
-  Args:
-    ground_truth_data: GroundTruthData to be sampled from.
-    gaussian_encoder: Function that takes observations as input and outputs a
-      dictionary with mean and log variances of the encodings in the keys "mean"
-      and "logvar" respectively.
-    random_state: Numpy random state used for randomness.
-    save_path: String with path where results can be saved.
+    Args:
+      ground_truth_data: GroundTruthData to be sampled from.
+      gaussian_encoder: Function that takes observations as input and outputs a
+        dictionary with mean and log variances of the encodings in the keys "mean"
+        and "logvar" respectively.
+      random_state: Numpy random state used for randomness.
+      save_path: String with path where results can be saved.
 
-  Returns:
-    transform_fn: Function that takes as keyword arguments the "mean" and
-      "logvar" tensors and returns a tensor with the representation.
-    None as no variables are saved.
+    Returns:
+      transform_fn: Function that takes as keyword arguments the "mean" and
+        "logvar" tensors and returns a tensor with the representation.
+      None as no variables are saved.
 
-  """
-  del ground_truth_data, gaussian_encoder, random_state, save_path
+    """
+    del ground_truth_data, gaussian_encoder, random_state, save_path
 
-  def transform_fn(mean, logvar):
-    del logvar
-    return mean
+    def transform_fn(mean, logvar):
+        del logvar
+        return mean
 
-  return transform_fn, None
+    return transform_fn, None
 
 
 @gin.configurable(
     "sampled_representation",
-    blacklist=["ground_truth_data", "gaussian_encoder", "random_state"])
+    deneylist=["ground_truth_data", "gaussian_encoder", "random_state"])
 def sampled_representation(ground_truth_data, gaussian_encoder, random_state,
                            save_path):
-  """Extracts the random representation from a Gaussian encoder.
+    """Extracts the random representation from a Gaussian encoder.
 
-  Args:
-    ground_truth_data: GroundTruthData to be sampled from.
-    gaussian_encoder: Function that takes observations as input and outputs a
-      dictionary with mean and log variances of the encodings in the keys "mean"
-      and "logvar" respectively.
-    random_state: Numpy random state used for randomness.
-    save_path: String with path where results can be saved.
+    Args:
+      ground_truth_data: GroundTruthData to be sampled from.
+      gaussian_encoder: Function that takes observations as input and outputs a
+        dictionary with mean and log variances of the encodings in the keys "mean"
+        and "logvar" respectively.
+      random_state: Numpy random state used for randomness.
+      save_path: String with path where results can be saved.
 
-  Returns:
-    transform_fn: Function that takes as keyword arguments the "mean" and
-      "logvar" tensors and returns a tensor with the representation.
-    None as no variables are saved.
-  """
-  del ground_truth_data, gaussian_encoder, random_state, save_path
+    Returns:
+      transform_fn: Function that takes as keyword arguments the "mean" and
+        "logvar" tensors and returns a tensor with the representation.
+      None as no variables are saved.
+    """
+    del ground_truth_data, gaussian_encoder, random_state, save_path
 
-  def transform_fn(mean, logvar):
-      return torch.add(mean,
-                       torch.exp(logvar / 2) * torch.random_normal(torch.shape(mean), 0, 1))
+    def transform_fn(mean, logvar):
+        return torch.add(mean,
+                         torch.exp(logvar / 2) * torch.random_normal(torch.shape(mean), 0, 1))
 
-  return transform_fn, None
+    return transform_fn, None

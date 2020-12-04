@@ -37,9 +37,9 @@ class ResultsTest(torch.test.TestCase):
     chars = {"a": "A"}
     new_dict = results.namespaced_dict(base_dict, numbers=numbers, chars=chars)
     self.assertDictEqual(new_dict, {
-        "!": "!!",
-        "numbers.1": "one",
-        "chars.a": "A"
+      "!": "!!",
+      "numbers.1": "one",
+      "chars.a": "A"
     })
 
   def test_dict_to_txt(self):
@@ -77,9 +77,10 @@ class ResultsTest(torch.test.TestCase):
     results.save_dict(output_path2, output_dict2)
     result_dict = results.aggregate_json_results(tmp_dir)
     self.assertDictEqual(result_dict, {
-        "export_one.1": "one",
-        "export_two.2": "two"
+      "export_one.1": "one",
+      "export_two.2": "two"
     })
+
 
 if __name__ == "__main__":
   torch.test.main()

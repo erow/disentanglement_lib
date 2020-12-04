@@ -62,13 +62,13 @@ def convolute_and_save(module_path, signature, export_path, transform_fn,
     # from the checkpoint.
     prefix = "transform/"
     transform_variables = {
-        k[len(prefix):]: v
-        for k, v in m.variable_map.items()
-        if k.startswith(prefix)
+      k[len(prefix):]: v
+      for k, v in m.variable_map.items()
+      if k.startswith(prefix)
     }
     if transform_variables:
       init_fn = contrib_framework.assign_from_checkpoint_fn(
-          transform_checkpoint_path, transform_variables)
+        transform_checkpoint_path, transform_variables)
 
     with torch.Session() as sess:
       # Initialize all variables, this also loads the TFHub parameters.

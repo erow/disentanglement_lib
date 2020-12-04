@@ -27,26 +27,26 @@ import gin
 
 class PostprocessTest(parameterized.TestCase):
 
-  def setUp(self):
-    super(PostprocessTest, self).setUp()
-    self.model_dir = self.create_tempdir(
-        "model", cleanup=absltest.TempFileCleanup.OFF).full_path
-    train.train_with_gin(self.model_dir, True, [
-        resources.get_file("config/tests/methods/unsupervised/train_test.gin")
-    ], [])
+    def setUp(self):
+        super(PostprocessTest, self).setUp()
+        self.model_dir = self.create_tempdir(
+            "model", cleanup=absltest.TempFileCleanup.OFF).full_path
+        train.train_with_gin(self.model_dir, True, [
+            resources.get_file("config/tests/methods/unsupervised/train_test.gin")
+        ], [])
 
-  @parameterized.parameters(
-      list(
-          resources.get_files_in_folder(
-              "config/tests/postprocessing/postprocess_test_configs")))
-  def test_postprocess(self, gin_config):
-    # We clear the gin config before running. Otherwise, if a prior test fails,
-    # the gin config is locked and the current test fails.
-    gin.clear_config()
-    postprocess.postprocess_with_gin(self.model_dir,
-                                     self.create_tempdir().full_path, True,
-                                     [gin_config], [])
+    @parameterized.parameters(
+        list(
+            resources.get_files_in_folder(
+                "config/tests/postprocessing/postprocess_test_configs")))
+    def test_postprocess(self, gin_config):
+        # We clear the gin config before running. Otherwise, if a prior test fails,
+        # the gin config is locked and the current test fails.
+        gin.clear_config()
+        postprocess.postprocess_with_gin(self.model_dir,
+                                         self.create_tempdir().full_path, True,
+                                         [gin_config], [])
 
 
 if __name__ == "__main__":
-  absltest.main()
+    absltest.main()

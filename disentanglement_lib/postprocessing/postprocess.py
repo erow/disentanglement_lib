@@ -58,7 +58,7 @@ def postprocess_with_gin(model_dir,
 
 
 @gin.configurable(
-    "postprocess", blacklist=["model_dir", "output_dir", "overwrite"])
+    "postprocess", deneylist=["model_dir", "output_dir", "overwrite"])
 def postprocess(model_dir,
                 output_dir,
                 overwrite=False,

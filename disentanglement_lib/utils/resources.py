@@ -21,16 +21,14 @@ import os
 
 
 def get_file(path):
-  """Returns path relative to file."""
-  from pkg_resources import resource_filename  # pylint: disable=g-bad-import-order, g-import-not-at-top
-  return resource_filename("disentanglement_lib", path)
+    """Returns path relative to file."""
+    from pkg_resources import resource_filename  # pylint: disable=g-bad-import-order, g-import-not-at-top
+    return resource_filename("disentanglement_lib", path)
 
 
 def get_files_in_folder(path):
-  import pkg_resources  # pylint: disable=g-bad-import-order, g-import-not-at-top
-  for name in pkg_resources.resource_listdir("disentanglement_lib", path):
-    new_path = path + "/" + name
-    if not pkg_resources.resource_isdir("disentanglement_lib", new_path):
-      yield pkg_resources.resource_filename("disentanglement_lib", new_path)
-
-
+    import pkg_resources  # pylint: disable=g-bad-import-order, g-import-not-at-top
+    for name in pkg_resources.resource_listdir("disentanglement_lib", path):
+        new_path = path + "/" + name
+        if not pkg_resources.resource_isdir("disentanglement_lib", new_path):
+            yield pkg_resources.resource_filename("disentanglement_lib", new_path)

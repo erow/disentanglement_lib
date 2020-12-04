@@ -71,7 +71,6 @@ class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
         raise NotImplementedError
 
 
-
 def shuffle_codes(z):
     """Shuffles latent variables across the batch.
 

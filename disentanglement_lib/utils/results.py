@@ -79,7 +79,7 @@ def update_result_directory(result_directory,
   # Aggregate all the results present in the result_dir so far.
   aggregate_dict = aggregate_json_results(json_dir)
   aggregate_json_path = results_json_path = os.path.join(
-      result_directory, "aggregate", "{}.json".format(step_name))
+    result_directory, "aggregate", "{}.json".format(step_name))
   save_dict(aggregate_json_path, aggregate_dict)
 
 
