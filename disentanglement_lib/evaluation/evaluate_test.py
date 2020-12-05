@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from absl.testing import absltest
+from absl import flags
 from absl.testing import parameterized
 from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.methods.unsupervised import train
@@ -25,11 +26,15 @@ from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import resources
 import gin
 
+absltest.flags.DEFINE_string('test_tempdir', '/tmp/test', 'no')
+absltest.FLAGS(['evaluation_test.py'])
+
 
 class EvaluateTest(parameterized.TestCase):
 
     def setUp(self):
         super(EvaluateTest, self).setUp()
+
         self.model_dir = self.create_tempdir(
             "model", cleanup=absltest.TempFileCleanup.OFF).full_path
         model_config = resources.get_file(
@@ -38,7 +43,7 @@ class EvaluateTest(parameterized.TestCase):
         self.output_dir = self.create_tempdir(
             "output", cleanup=absltest.TempFileCleanup.OFF).full_path
         postprocess_config = resources.get_file(
-            "config/tests/postprocessing/postprocess_test_configs/mean.gin")
+            "config/tests/postprocessing/postprocess_test_configs/representation.gin")
         postprocess.postprocess_with_gin(self.model_dir, self.output_dir, True,
                                          [postprocess_config])
 

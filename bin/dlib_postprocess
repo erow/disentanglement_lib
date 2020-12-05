@@ -24,7 +24,7 @@ from absl import flags
 from disentanglement_lib.postprocessing import postprocess
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("model_dir", 'example_output/fvae/model', "Directory to take trained model from.")
+flags.DEFINE_string("model_dir", 'example_output/vae/model', "Directory to take trained model from.")
 flags.DEFINE_string("output_dir", None,
                     "Directory to save extracted representation to.")
 flags.DEFINE_multi_string("gin_config", ['examples/postprocess.gin'],

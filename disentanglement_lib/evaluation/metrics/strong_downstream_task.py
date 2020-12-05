@@ -25,7 +25,7 @@ import gin
 
 @gin.configurable(
     "strong_downstream_task",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_strong_downstream_task(ground_truth_data,
                                    representation_function,

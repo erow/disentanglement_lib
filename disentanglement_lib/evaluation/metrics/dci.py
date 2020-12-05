@@ -32,7 +32,7 @@ import gin
 
 @gin.configurable(
     "dci",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_dci(ground_truth_data, representation_function, random_state,
                 artifact_dir=None,
@@ -87,7 +87,7 @@ def _compute_dci(mus_train, ys_train, mus_test, ys_test):
 
 @gin.configurable(
     "dci_validation",
-    deneylist=["observations", "labels", "representation_function"])
+    blacklist=["observations", "labels", "representation_function"])
 def compute_dci_on_fixed_data(observations, labels, representation_function,
                               train_percentage=gin.REQUIRED, batch_size=100):
     """Computes the DCI scores on the fixed set of observations and labels.

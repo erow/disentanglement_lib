@@ -24,3 +24,5 @@ encoder.num_latent = 10
 encoder.encoder_fn = @test_encoder
 decoder.decoder_fn = @test_decoder
 reconstruction_loss.loss_fn = @bernoulli_loss
+model.opt_name = @AdamOpt
+AdamOpt.args = {'lr':0.0001}

@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-postprocess.postprocess_fn = @sampled_representation
+
 dataset.name="dummy_data"
 postprocess.random_seed = 0

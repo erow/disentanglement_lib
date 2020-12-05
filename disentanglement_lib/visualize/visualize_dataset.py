@@ -22,7 +22,6 @@ from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.visualize import visualize_util
 import numpy as np
 from six.moves import range
-from tensorflow.compat.v1 import gfile
 
 
 def visualize_dataset(dataset_name, output_path, num_animations=5,
@@ -44,8 +43,8 @@ def visualize_dataset(dataset_name, output_path, num_animations=5,
 
     # Create output folder if necessary.
     path = os.path.join(output_path, dataset_name)
-    if not gfile.IsDirectory(path):
-        gfile.MakeDirs(path)
+    if not os.path.isdir(path):
+        os.mkdir(path)
 
     # Create still images.
     for i in range(data.num_factors):

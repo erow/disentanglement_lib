@@ -33,20 +33,29 @@ import torch
 import gin
 
 
-class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
+@gin.configurable("model", whitelist=["num_latent", "encoder_fn", "decoder_fn"])
+class BaseVAE(gaussian_encoder_model.GaussianModel):
     """Abstract base class of a basic Gaussian encoder model."""
 
-    def __init__(self, input_shape):
-        super().__init__()
-        self.gaussian_encoder = architectures.make_gaussian_encoder(input_shape)
-        self.num_latent = self.gaussian_encoder.num_latent
+    def __init__(self, input_shape,
+                 num_latent=gin.REQUIRED,
+                 encoder_fn=gin.REQUIRED,
+                 decoder_fn=gin.REQUIRED,
+                 **kwargs):
+        super().__init__(input_shape, num_latent=num_latent,
+                         encoder_fn=encoder_fn.__wrapped__,
+                         decoder_fn=decoder_fn.__wrapped__,
+                         **kwargs)
+
+        self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
+        self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
+        self.num_latent = self.encode.num_latent
         self.input_shape = input_shape
-        self.decode = architectures.make_decoder(self.num_latent, input_shape)
 
     def model_fn(self, features, labels):
         """Training compatible model function."""
         del labels
-        z_mean, z_logvar = self.gaussian_encoder(features)
+        z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         reconstructions = self.decode(z_sampled)
         per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
@@ -109,7 +118,7 @@ def make_metric_fn(*names):
 class BetaVAE(BaseVAE):
     """BetaVAE model."""
 
-    def __init__(self, input_shape, beta=gin.REQUIRED):
+    def __init__(self, input_shape, beta=gin.REQUIRED, **kwargs):
         """Creates a beta-VAE model.
 
         Implementing Eq. 4 of "beta-VAE: Learning Basic Visual Concepts with a
@@ -122,7 +131,7 @@ class BetaVAE(BaseVAE):
         Returns:
           model_fn: Model function for TPUEstimator.
         """
-        super().__init__(input_shape)
+        super().__init__(input_shape, beta=beta, **kwargs)
         self.beta = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
@@ -149,7 +158,7 @@ def anneal(c_max, step, iteration_threshold):
 class AnnealedVAE(BaseVAE):
     """AnnealedVAE model."""
 
-    def __init__(self, input_shape, gamma=gin.REQUIRED, c_max=gin.REQUIRED, iteration_threshold=gin.REQUIRED):
+    def __init__(self, input_shape, gamma=gin.REQUIRED, c_max=gin.REQUIRED, iteration_threshold=gin.REQUIRED, **kwargs):
         """Creates an AnnealedVAE model.
 
         Implementing Eq. 8 of "Understanding disentangling in beta-VAE"
@@ -160,7 +169,7 @@ class AnnealedVAE(BaseVAE):
           c_max: Maximum capacity of the bottleneck.
           iteration_threshold: How many iterations to reach c_max.
         """
-        super().__init__(input_shape)
+        super().__init__(input_shape, gamma=gamma, c_max=c_max, iteration_threshold=iteration_threshold, **kwargs)
         self.gamma = gamma
         self.c_max = c_max
         self.iteration_threshold = iteration_threshold
@@ -175,7 +184,7 @@ class AnnealedVAE(BaseVAE):
 class FactorVAE(BaseVAE):
     """FactorVAE model."""
 
-    def __init__(self, input_shape, gamma=gin.REQUIRED):
+    def __init__(self, input_shape, gamma=gin.REQUIRED, **kwargs):
         """Creates a FactorVAE model.
 
         Implementing Eq. 2 of "Disentangling by Factorizing"
@@ -184,7 +193,7 @@ class FactorVAE(BaseVAE):
         Args:
           gamma: Hyperparameter for the regularizer.
         """
-        super().__init__(input_shape)
+        super().__init__(input_shape, gamma=gamma, **kwargs)
         self.gamma = gamma
         self.discriminator = architectures.make_discriminator(self.num_latent)
 
@@ -192,7 +201,7 @@ class FactorVAE(BaseVAE):
         """TPUEstimator compatible model function."""
 
         data_shape = features.shape[1:]
-        z_mean, z_logvar = self.gaussian_encoder(features)
+        z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         z_shuffle = shuffle_codes(z_sampled)
 
@@ -279,7 +288,7 @@ class DIPVAE(BaseVAE):
     def __init__(self, input_shape,
                  lambda_od=gin.REQUIRED,
                  lambda_d_factor=gin.REQUIRED,
-                 dip_type="i"):
+                 dip_type="i", **kwargs):
         """Creates a DIP-VAE model.
 
         Based on Equation 6 and 7 of "Variational Inference of Disentangled Latent
@@ -292,7 +301,7 @@ class DIPVAE(BaseVAE):
             lambda_d = lambda_d_factor*lambda_od.
           dip_type: "i" or "ii".
         """
-        super().__init__(input_shape)
+        super().__init__(input_shape, lambda_od=lambda_od, lambda_d_factor=lambda_d_factor, dip_type=dip_type, **kwargs)
         self.lambda_od = lambda_od
         self.lambda_d_factor = lambda_d_factor
         self.dip_type = dip_type
@@ -366,7 +375,7 @@ def total_correlation(z, z_mean, z_logvar):
 class BetaTCVAE(BaseVAE):
     """BetaTCVAE model."""
 
-    def __init__(self, input_shape, beta=gin.REQUIRED):
+    def __init__(self, input_shape, beta=gin.REQUIRED, **kwargs):
         """Creates a beta-TC-VAE model.
 
         Based on Equation 4 with alpha = gamma = 1 of "Isolating Sources of
@@ -377,7 +386,7 @@ class BetaTCVAE(BaseVAE):
         Args:
           beta: Hyperparameter total correlation.
         """
-        super().__init__(input_shape)
+        super().__init__(input_shape, beta=beta, **kwargs)
         self.beta = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):

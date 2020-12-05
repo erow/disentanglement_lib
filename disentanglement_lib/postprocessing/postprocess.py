@@ -18,17 +18,20 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import pathlib
 import shutil
 import time
+
+from torch.utils.data import DataLoader, Dataset
+
 from disentanglement_lib.data.ground_truth import named_data
-from disentanglement_lib.postprocessing import methods  # pylint: disable=unused-import
-# from disentanglement_lib.utils import convolute_hub
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import load, GaussianModel
 from disentanglement_lib.utils import results
 import numpy as np
 import torch
 
+torch.multiprocessing.set_sharing_strategy('file_system')
 import gin
-
 
 def postprocess_with_gin(model_dir,
                          output_dir,
@@ -58,11 +61,10 @@ def postprocess_with_gin(model_dir,
 
 
 @gin.configurable(
-    "postprocess", deneylist=["model_dir", "output_dir", "overwrite"])
+    "postprocess", blacklist=["model_dir", "output_dir", "overwrite"])
 def postprocess(model_dir,
                 output_dir,
                 overwrite=False,
-                postprocess_fn=gin.REQUIRED,
                 random_seed=gin.REQUIRED,
                 name=""):
     """Loads a trained Gaussian encoder and extracts representation.
@@ -71,7 +73,6 @@ def postprocess(model_dir,
       model_dir: String with path to directory where the model is saved.
       output_dir: String with the path where the representation should be saved.
       overwrite: Boolean indicating whether to overwrite output directory.
-      postprocess_fn: Function used to extract the representation (see methods.py
         for examples).
       random_seed: Integer with random seed used for postprocessing (may be
         unused).
@@ -88,7 +89,7 @@ def postprocess(model_dir,
             shutil.rmtree(output_dir)
         else:
             raise ValueError("Directory already exists and overwrite is False.")
-
+    pathlib.Path(output_dir).mkdir(parents=True)
     # Set up timer to keep track of elapsed time in results.
     experiment_timer = time.time()
 
@@ -103,33 +104,31 @@ def postprocess(model_dir,
             gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
                 "'", ""))
     dataset = named_data.get_named_ground_truth_data()
+    dl = DataLoader(dataset, batch_size=512, num_workers=4)
 
     # Path to TFHub module of previously trained model.
-    module_path = os.path.join(model_dir, "tfhub")
-    with hub.eval_function_for_module(module_path) as f:
 
-        def _gaussian_encoder(x):
-            """Encodes images using trained model."""
-            # Push images through the TFHub module.
-            output = f(dict(images=x), signature="gaussian_encoder", as_dict=True)
-            # Convert to numpy arrays and return.
-            return {key: np.array(values) for key, values in output.items()}
+    model = load(GaussianModel, model_dir)
 
-        # Run the postprocessing function which returns a transformation function
-        # that can be used to create the representation from the mean and log
-        # variance of the Gaussian distribution given by the encoder. Also returns
-        # path to a checkpoint if the transformation requires variables.
-        transform_fn, transform_checkpoint_path = postprocess_fn(
-            dataset, _gaussian_encoder, np.random.RandomState(random_seed),
-            output_dir)
+    # Run the postprocessing function which returns a transformation function
+    # that can be used to create the representation from the mean and log
+    # variance of the Gaussian distribution given by the encoder. Also returns
+    # path to a checkpoint if the transformation requires variables.
 
-        # Takes the "gaussian_encoder" signature, extracts the representation and
-        # then saves under the signature "representation".
-        tfhub_module_dir = os.path.join(output_dir, "tfhub")
-        convolute_hub.convolute_and_save(
-            module_path, "gaussian_encoder", tfhub_module_dir, transform_fn,
-            transform_checkpoint_path, "representation")
-
+    mean, std, factors = [], [], []
+    with torch.no_grad():
+        for imgs, labels in dl:
+            mu, logvar = model.encode(imgs)
+            mean.append(mu.numpy())
+            std.append((logvar / 2).exp().numpy())
+            factors.append(labels.numpy())
+    mean = np.concatenate(mean)
+    std = np.concatenate(std)
+    factors = np.concatenate(factors)
+    representation = {'mean': mean,
+                      'std': std,
+                      'factor': factors}
+    np.save(os.path.join(output_dir, 'representation.npy'), representation)
     # We first copy over all the prior results and configs.
     original_results_dir = os.path.join(model_dir, "results")
     results_dir = os.path.join(output_dir, "results")

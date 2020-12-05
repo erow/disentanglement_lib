@@ -58,15 +58,13 @@ def _load(path):
     with open(path) as f:
         result = json.load(f)
 
-
-result["path"] = path
-return result
+    result["path"] = path
+    return result
 
 
 def _get(pattern):
     files = glob.glob(pattern)
-
-
-pool = multiprocessing.Pool()
-all_results = pool.map(_load, files)
-return pd.DataFrame(all_results)
+    pool = multiprocessing.Pool()
+    logging.info("Get %d files." % len(files))
+    all_results = pool.map(_load, files)
+    return pd.DataFrame(all_results)

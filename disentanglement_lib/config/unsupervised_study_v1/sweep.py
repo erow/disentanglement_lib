@@ -46,20 +46,20 @@ def get_num_latent(sweep):
 
 def get_seeds(num):
     """Returns random seeds."""
-    return h.sweep("model.random_seed", h.categorical(list(range(num))))
+    return h.sweep("train.random_seed", h.categorical(list(range(num))))
 
 
 def get_default_models():
     """Our default set of models (6 model * 6 hyperparameters=36 models)."""
     # BetaVAE config.
-    model_name = h.fixed("model.name", "beta_vae")
-    model_fn = h.fixed("model.model", "@vae")
+    model_name = h.fixed("train.name", "beta_vae")
+    model_fn = h.fixed("train.model", "@vae")
     betas = h.sweep("vae.beta", h.discrete([1., 2., 4., 6., 8., 16.]))
     config_beta_vae = h.zipit([model_name, betas, model_fn])
 
     # AnnealedVAE config.
-    model_name = h.fixed("model.name", "annealed_vae")
-    model_fn = h.fixed("model.model", "@annealed_vae")
+    model_name = h.fixed("train.name", "annealed_vae")
+    model_fn = h.fixed("train.model", "@annealed_vae")
     iteration_threshold = h.fixed("annealed_vae.iteration_threshold", 100000)
     c = h.sweep("annealed_vae.c_max", h.discrete([5., 10., 25., 50., 75., 100.]))
     gamma = h.fixed("annealed_vae.gamma", 1000)
@@ -67,8 +67,8 @@ def get_default_models():
         [model_name, c, iteration_threshold, gamma, model_fn])
 
     # FactorVAE config.
-    model_name = h.fixed("model.name", "factor_vae")
-    model_fn = h.fixed("model.model", "@factor_vae")
+    model_name = h.fixed("train.name", "factor_vae")
+    model_fn = h.fixed("train.model", "@factor_vae")
     discr_fn = h.fixed("discriminator.discriminator_fn", "@fc_discriminator")
 
     gammas = h.sweep("factor_vae.gamma",
@@ -76,8 +76,8 @@ def get_default_models():
     config_factor_vae = h.zipit([model_name, gammas, model_fn, discr_fn])
 
     # DIP-VAE-I config.
-    model_name = h.fixed("model.name", "dip_vae_i")
-    model_fn = h.fixed("model.model", "@dip_vae")
+    model_name = h.fixed("train.name", "dip_vae_i")
+    model_fn = h.fixed("train.model", "@dip_vae")
     lambda_od = h.sweep("dip_vae.lambda_od",
                         h.discrete([1., 2., 5., 10., 20., 50.]))
     lambda_d_factor = h.fixed("dip_vae.lambda_d_factor", 10.)
@@ -86,8 +86,8 @@ def get_default_models():
         [model_name, model_fn, lambda_od, lambda_d_factor, dip_type])
 
     # DIP-VAE-II config.
-    model_name = h.fixed("model.name", "dip_vae_ii")
-    model_fn = h.fixed("model.model", "@dip_vae")
+    model_name = h.fixed("train.name", "dip_vae_ii")
+    model_fn = h.fixed("train.model", "@dip_vae")
     lambda_od = h.sweep("dip_vae.lambda_od",
                         h.discrete([1., 2., 5., 10., 20., 50.]))
     lambda_d_factor = h.fixed("dip_vae.lambda_d_factor", 1.)
@@ -96,8 +96,8 @@ def get_default_models():
         [model_name, model_fn, lambda_od, lambda_d_factor, dip_type])
 
     # BetaTCVAE config.
-    model_name = h.fixed("model.name", "beta_tc_vae")
-    model_fn = h.fixed("model.model", "@beta_tc_vae")
+    model_name = h.fixed("train.name", "beta_tc_vae")
+    model_fn = h.fixed("train.model", "@beta_tc_vae")
     betas = h.sweep("beta_tc_vae.beta", h.discrete([1., 2., 4., 6., 8., 10.]))
     config_beta_tc_vae = h.zipit([model_name, model_fn, betas])
     all_models = h.chainit([
@@ -109,8 +109,8 @@ def get_default_models():
 
 def get_config():
     """Returns the hyperparameter configs for different experiments."""
-    arch_enc = h.fixed("encoder.encoder_fn", "@conv_encoder", length=1)
-    arch_dec = h.fixed("decoder.decoder_fn", "@deconv_decoder", length=1)
+    arch_enc = h.fixed("model.encoder_fn", "@conv_encoder", length=1)
+    arch_dec = h.fixed("model.decoder_fn", "@deconv_decoder", length=1)
     architecture = h.zipit([arch_enc, arch_dec])
     return h.product([
         get_datasets(),  # 7

@@ -25,6 +25,7 @@ import time
 import warnings
 
 from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.evaluation import representation_fn  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import beta_vae  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import dci  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import downstream_task  # pylint: disable=unused-import
@@ -38,10 +39,11 @@ from disentanglement_lib.evaluation.metrics import sap_score  # pylint: disable=
 from disentanglement_lib.evaluation.metrics import strong_downstream_task  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
+from disentanglement_lib.evaluation.representation_fn import mean_representation
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import load, GaussianModel
+from disentanglement_lib.postprocessing.convert_representation import concat_representation
 from disentanglement_lib.utils import results
 import numpy as np
-import torch
-
 import gin
 
 
@@ -73,10 +75,11 @@ def evaluate_with_gin(model_dir,
 
 
 @gin.configurable(
-    "evaluation", deneylist=["model_dir", "output_dir", "overwrite"])
+    "evaluation", blacklist=["model_dir", "output_dir", "overwrite"])
 def evaluate(model_dir,
              output_dir,
              overwrite=False,
+             representation_fn=mean_representation,
              evaluation_fn=gin.REQUIRED,
              random_seed=gin.REQUIRED,
              name=""):
@@ -115,15 +118,21 @@ def evaluate(model_dir,
                 "'", ""))
     dataset = named_data.get_named_ground_truth_data()
 
-    # TODO replace tfhub
+    # Using the learned distribution (mu, std) instead of the model
+    variables = np.load(os.path.join(model_dir, 'representation.npy'), allow_pickle=True)
+    variables = variables[()]
+    distributions = concat_representation(dataset, variables)
 
+    artifact_dir = os.path.join(model_dir, "artifacts", name)
+    results_dict = evaluation_fn(
+        distributions,
+        representation_fn,
+        random_state=np.random.RandomState(random_seed),
+        artifact_dir=artifact_dir)
 
-def _has_kwarg_or_kwargs(f, kwarg):
-    """Checks if the function has the provided kwarg or **kwargs."""
-    # For gin wrapped functions, we need to consider the wrapped function.
-    if hasattr(f, "__wrapped__"):
-        f = f.__wrapped__
-    (args, _, kwargs, _, _, _, _) = inspect.getfullargspec(f)
-    if kwarg in args or kwargs is not None:
-        return True
-    return False
+    # Save the results (and all previous results in the pipeline) on disk.
+    original_results_dir = os.path.join(model_dir, "results")
+    results_dir = os.path.join(output_dir, "results")
+    results_dict["elapsed_time"] = time.time() - experiment_timer
+    results.update_result_directory(results_dir, "evaluation", results_dict,
+                                    original_results_dir)

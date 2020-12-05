@@ -97,7 +97,7 @@ def obtain_representation(observations, representation_function, batch_size):
       representations: Codes (num_codes, num_points)-Numpy array.
     """
     representations = None
-    num_points = observations.shape[0]
+    num_points = len(observations)
     i = 0
     while i < num_points:
         num_points_iter = min(num_points - i, batch_size)
@@ -109,6 +109,7 @@ def obtain_representation(observations, representation_function, batch_size):
                                          representation_function(
                                              current_observations)))
         i += num_points_iter
+    # representations = representation_function(observations)
     return np.transpose(representations)
 
 
@@ -133,14 +134,14 @@ def discrete_entropy(ys):
 
 
 @gin.configurable(
-    "discretizer", deneylist=["target"])
+    "discretizer", blacklist=["target"])
 def make_discretizer(target, num_bins=gin.REQUIRED,
                      discretizer_fn=gin.REQUIRED):
     """Wrapper that creates discretizers."""
     return discretizer_fn(target, num_bins)
 
 
-@gin.configurable("histogram_discretizer", deneylist=["target"])
+@gin.configurable("histogram_discretizer", blacklist=["target"])
 def _histogram_discretize(target, num_bins=gin.REQUIRED):
     """Discretization based on histograms."""
     discretized = np.zeros_like(target)

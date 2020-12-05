@@ -28,7 +28,6 @@ import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import torch
 
 
 def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
@@ -80,9 +79,9 @@ def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
     plot_bar_palette(palette, max_val, ax)
 
     if not os.path.isdir(output_dir):
-        torch.gfile.MakeDirs(output_dir)
+        os.mkdir(output_dir)
     output_path = os.path.join(output_dir, "{}.png".format(name))
-    with torch.gfile.Open(output_path, "wb") as path:
+    with open(output_path, "wb") as path:
         fig.savefig(path, bbox_inches="tight")
 
 
@@ -169,9 +168,9 @@ def plot_recovery_vs_independent(matrix, output_dir, name):
     plt.xlabel("Threshold")
     plt.ylabel("Number of Factors")
     if not os.path.isdir(output_dir):
-        torch.gfile.MakeDirs(output_dir)
+        os.mkdir(output_dir)
     output_path = os.path.join(output_dir, name + ".png")
-    with torch.gfile.Open(output_path, "wb") as path:
+    with open(output_path, "wb") as path:
         fig.savefig(path, bbox_inches="tight")
 
 

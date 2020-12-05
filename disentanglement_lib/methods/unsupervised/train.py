@@ -23,38 +23,25 @@ from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import vae  # pylint: disable=unused-import
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
 from disentanglement_lib.utils import results
+from .optimizer import *
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-import gin
+import gin.torch
 import pathlib, shutil
-import pytorch_lightning as pl
+import wandb
 
 
-class torch_dataset(Dataset):
-    def __init__(self, tf_dataset, random_seed):
-        self.random_state = np.random.RandomState(random_seed)
-        self.tf_dataset = tf_dataset
-
-    def __len__(self):
-        return np.prod(self.tf_dataset.factors_num_values)
-
-    def __getitem__(self, item):
-        factors, observations = self.tf_dataset.sample(1, self.random_state)
-        observations = torch.tensor(observations, dtype=torch.float32)
-        factors = torch.tensor(factors, dtype=torch.float32)
-        observations = observations.permute(0, 3, 1, 2)
-        return observations[0], factors
-
-
-@gin.configurable("model", deneylist=["model_dir", "overwrite"])
+@gin.configurable("train", blacklist=["model_dir", "overwrite"])
 def train(model_dir,
           overwrite=False,
           model=gin.REQUIRED,
           training_steps=gin.REQUIRED,
           random_seed=gin.REQUIRED,
           batch_size=gin.REQUIRED,
+          opt_name=gin.REQUIRED,
           eval_steps=1000,
           name="",
           model_num=None):
@@ -78,7 +65,8 @@ def train(model_dir,
     # We do not use the variables 'name' and 'model_num'. Instead, they can be
     # used to name results as they will be part of the saved gin config.
     del name, model_num
-
+    torch.random.manual_seed(random_seed)
+    np.random.seed(random_seed)
     model_path = pathlib.Path(model_dir)
     # Delete the output directory if it already exists.
     if model_path.exists():
@@ -86,15 +74,16 @@ def train(model_dir,
             shutil.rmtree(model_path)
         else:
             raise ValueError("Directory already exists and overwrite is False.")
-
+    model_path.mkdir(parents=True)
     # Create a numpy random state. We will sample the random seeds for training
     # and evaluation from this.
 
     # Obtain the dataset. tf format
     dataset = named_data.get_named_ground_truth_data()
     tf_data_shape = dataset.observation_shape
-    dataset = torch_dataset(dataset, random_seed)
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=8)
+    dl = DataLoader(dataset, batch_size=batch_size, num_workers=8, shuffle=True)
+    # Set up time to keep track of elapsed time in results.
+    experiment_timer = time.time()
 
     # We create a TPUEstimator based on the provided model. This is primarily so
     # that we could switch to TPU training in the future. For now, we train
@@ -102,21 +91,46 @@ def train(model_dir,
     save_checkpoints_steps = training_steps // 10
     input_shape = [tf_data_shape[2], tf_data_shape[0], tf_data_shape[1]]
     autoencoder = model(input_shape)
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        filename='{global_step:05d}',
-        period=save_checkpoints_steps)
-    trainer = pl.Trainer(max_steps=training_steps, num_processes=4, gpus=1,
-                         default_root_dir=model_dir,
-                         callbacks=[checkpoint_callback])
-    trainer.fit(autoencoder, dl)
-    trainer.save_checkpoint("result.ckpt")
+    run = wandb.init(project='dislib')
+
+    device = 'cuda'
+
+    autoencoder.to(device).train()
+    opt = opt_name(autoencoder.parameters())
+    global_step = 0
+
+    autoencoder.save(model_dir)
+    load(GaussianModel, model_dir)
+    while global_step < training_steps:
+        for imgs, labels in dl:
+            imgs, labels = imgs.to(device), labels.to(device)
+            autoencoder.global_step = global_step
+            summary = autoencoder.model_fn(imgs, labels)
+            loss = summary['loss']
+            run.log(summary)
+
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            global_step = global_step + 1
+
+            # if (global_step + 1) % save_checkpoints_steps == 0:
+            #     torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
+            if global_step >= training_steps:
+                break
 
     # Save model as a TFHub module.
+    autoencoder.save(model_dir)
+    run.save(f'{model_dir}/ckp.pth')
+    # wandb.log_artifact()
 
     # Save the results. The result dir will contain all the results and config
     # files that we copied along, as we progress in the pipeline. The idea is that
     # these files will be available for analysis at the end.
-
+    results_dir = os.path.join(model_dir, "results")
+    results_dict = summary
+    results_dict["elapsed_time"] = time.time() - experiment_timer
+    results.update_result_directory(results_dir, "train", results_dict)
 
 def train_with_gin(model_dir,
                    overwrite=False,

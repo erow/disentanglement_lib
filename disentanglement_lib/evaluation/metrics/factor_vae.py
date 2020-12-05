@@ -29,7 +29,7 @@ import gin
 
 @gin.configurable(
     "factor_vae_score",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_factor_vae(ground_truth_data,
                        representation_function,
@@ -100,7 +100,7 @@ def compute_factor_vae(ground_truth_data,
     return scores_dict
 
 
-@gin.configurable("prune_dims", deneylist=["variances"])
+@gin.configurable("prune_dims", blacklist=["variances"])
 def _prune_dims(variances, threshold=0.):
     """Mask for dimensions collapsed to the prior."""
     scale_z = np.sqrt(variances)

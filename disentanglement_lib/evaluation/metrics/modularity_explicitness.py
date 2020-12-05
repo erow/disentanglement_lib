@@ -32,7 +32,7 @@ import gin
 
 @gin.configurable(
     "modularity_explicitness",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_modularity_explicitness(ground_truth_data,
                                     representation_function,

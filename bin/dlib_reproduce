@@ -26,6 +26,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import gin.torch
 from absl import app
 from absl import flags
 from absl import logging
@@ -96,9 +97,9 @@ def main(unused_argv):
         logging.info("Training model...")
         model_dir = os.path.join(output_directory, "model")
         model_bindings = [
-                             "model.name = '{}'".format(os.path.basename(model_config_file)).replace(
+                             "train.name = '{}'".format(os.path.basename(model_config_file)).replace(
                                  ".gin", ""),
-                             "model.model_num = {}".format(FLAGS.model_num),
+                             "train.model_num = {}".format(FLAGS.model_num),
                          ] + model_bindings
         train.train_with_gin(model_dir, FLAGS.overwrite, [model_config_file],
                              model_bindings)
@@ -133,10 +134,10 @@ def main(unused_argv):
     # Iterate through the disentanglement metrics.
     eval_configs = sorted(study.get_eval_config_files())
     eval_configs = eval_configs
-    for config in postprocess_config_files:
-        post_name = os.path.basename(config).replace(".gin", "")
+
+    for post_name in ['mean', 'sample']:
         post_dir = os.path.join(output_directory, "postprocessed",
-                                post_name)
+                                "representation")
         # Now, we compute all the specified scores.
         for gin_eval_config in eval_configs:
             metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
@@ -145,7 +146,9 @@ def main(unused_argv):
                                       metric_name)
             eval_bindings = [
                 "evaluation.random_seed = {}".format(random_state.randint(2 ** 32)),
-                "evaluation.name = '{}'".format(metric_name)
+                "evaluation.name = '{}'".format(metric_name),
+                f"evaluation.representation_fn =@{post_name}_representation"
+
             ]
             evaluate.evaluate_with_gin(post_dir, metric_dir, FLAGS.overwrite,
                                        [gin_eval_config], eval_bindings)

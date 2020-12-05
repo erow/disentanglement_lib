@@ -73,7 +73,7 @@ def validate_with_gin(model_dir,
 
 
 @gin.configurable(
-    "validation", deneylist=["model_dir", "output_dir", "overwrite"])
+    "validation", blacklist=["model_dir", "output_dir", "overwrite"])
 def validate(model_dir,
              output_dir,
              overwrite=False,

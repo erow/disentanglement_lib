@@ -5,13 +5,13 @@ import numpy as np
 
 class DatasetTestCase(unittest.TestCase):
     def test_dsprites(self):
-        ds = dsprites.DSprites()
+        ds = dsprites.DSprites([2, 3, 4, 5])
 
         random_state = np.random.RandomState(0)
-        factors, observations = ds.sample(10, random_state)
-        self.assertTupleEqual(factors.shape, (10, 6))
-        self.assertTupleEqual(observations.shape, (10, 64, 64, 1))
-
+        observation, factor = ds[32 * 32 * 40 + 2 * 32 * 32 + 3 * 32 + 4]
+        self.assertTupleEqual(factor.shape, (4,))
+        self.assertTupleEqual(observation.shape, (1, 64, 64))
+        self.assertListEqual(factor.tolist(), [1, 2, 3, 4])
 
 if __name__ == '__main__':
     unittest.main()

@@ -25,7 +25,6 @@ import matplotlib
 matplotlib.use("Agg")  # Set headless-friendly backend.
 import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
-import torch
 
 
 def vis_all_interventional_effects(gen_factors, latents, output_dir):
@@ -57,9 +56,9 @@ def vis_all_interventional_effects(gen_factors, latents, output_dir):
 
     fig.tight_layout()
     if not os.path.isdir(output_dir):
-        torch.gfile.MakeDirs(output_dir)
+        os.mkdir(output_dir)
     output_path = os.path.join(output_dir, "interventional_effect.png")
-    with torch.gfile.Open(output_path, "wb") as path:
+    with open(output_path, "wb") as path:
         fig.savefig(path)
 
 

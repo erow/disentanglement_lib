@@ -21,12 +21,12 @@ from __future__ import division
 from __future__ import print_function
 import matplotlib
 
-matplotlib.use("Agg")  # Set headless-friendly backend.
+# matplotlib.use("Agg")  # Set headless-friendly backend.
 import matplotlib.pyplot as plt  # pylint: disable=g-import-not-at-top
 import numpy as np
 import pandas as pd
 from scipy.cluster import hierarchy
-import torch
+
 
 
 def dendrogram_plot(matrix, output_dir, factor_names):
@@ -117,7 +117,7 @@ def dendrogram_plot(matrix, output_dir, factor_names):
         thresholds_ids,
         np.around(np.array(thresholds, dtype="float32")[thresholds_ids], 2))
     output_path = output_dir + ".png"
-    with torch.gfile.Open(output_path, "wb") as path:
+    with open(output_path, "wb") as path:
         fig.savefig(path, bbox_inches="tight")
     return report_merges(z, matrix.shape[0])
 

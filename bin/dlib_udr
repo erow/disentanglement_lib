@@ -18,11 +18,13 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import glob
 import os
 from absl import app
 from absl import flags
 from disentanglement_lib.evaluation.udr import evaluate
-from tensorflow.compat.v1 import gfile
+
 import gin.tf
 
 FLAGS = flags.FLAGS
@@ -43,7 +45,7 @@ flags.DEFINE_string("gin_evaluation_config_glob", None,
 
 def main(unused_argv):
   if FLAGS.gin_evaluation_config_glob is not None:
-    for gin_eval_config in sorted(gfile.Glob(FLAGS.gin_evaluation_config_glob)):
+      for gin_eval_config in sorted(glob.glob(FLAGS.gin_evaluation_config_glob)):
       metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
       metric_dir = os.path.join(FLAGS.output_dir, metric_name)
       gin.parse_config_files_and_bindings(

@@ -26,7 +26,7 @@ import gin
 
 @gin.configurable(
     "mig",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_mig(ground_truth_data,
                 representation_function,
@@ -76,7 +76,7 @@ def _compute_mig(mus_train, ys_train):
 
 @gin.configurable(
     "mig_validation",
-    deneylist=["observations", "labels", "representation_function"])
+    blacklist=["observations", "labels", "representation_function"])
 def compute_mig_on_fixed_data(observations, labels, representation_function,
                               batch_size=100):
     """Computes the MIG scores on the fixed set of observations and labels.

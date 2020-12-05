@@ -40,7 +40,7 @@ class ValidateTest(parameterized.TestCase):
         self.output_dir = self.create_tempdir(
             "output", cleanup=absltest.TempFileCleanup.OFF).full_path
         postprocess_config = resources.get_file(
-            "config/tests/postprocessing/postprocess_test_configs/mean.gin")
+            "config/tests/postprocessing/postprocess_test_configs/representation.gin")
         postprocess.postprocess_with_gin(self.model_dir, self.output_dir, True,
                                          [postprocess_config])
 

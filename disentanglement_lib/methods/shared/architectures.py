@@ -17,56 +17,13 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import os
+
 import numpy as np
 import torch
 from torch import nn
 import gin
-
-
-@gin.configurable("encoder", whitelist=["num_latent", "encoder_fn"])
-def make_gaussian_encoder(input_shape,
-                          num_latent=gin.REQUIRED,
-                          encoder_fn=gin.REQUIRED):
-    """Gin wrapper to create and apply a Gaussian encoder configurable with gin.
-
-    This is a separate function so that several different models (such as
-    BetaVAE and FactorVAE) can call this function while the gin binding always
-    stays 'encoder.(...)'. This makes it easier to configure models and parse
-    the results files.
-
-    Args:
-      num_latent: Integer with dimensionality of latent space.
-      encoder_fn: Function that that takes the arguments (input_tensor,
-        num_latent, is_training) and returns the tuple (means, log_vars) with the
-        encoder means and log variances.
-
-    Returns:
-      Tuple (means, log_vars) with the encoder means and log variances.
-    """
-    return encoder_fn(input_shape=input_shape, num_latent=num_latent)
-
-
-@gin.configurable("decoder", whitelist=["decoder_fn"])
-def make_decoder(num_latent, output_shape,
-                 decoder_fn=gin.REQUIRED):
-    """Gin wrapper to create and apply a decoder configurable with gin.
-
-    This is a separate function so that several different models (such as
-    BetaVAE and FactorVAE) can call this function while the gin binding always
-    stays 'decoder.(...)'. This makes it easier to configure models and parse
-    the results files.
-
-    Args:
-      output_shape: Tuple with the output shape of the observations to be
-        generated.
-      decoder_fn: Function that that takes the arguments (input_tensor,
-        output_shape, is_training) and returns the decoded observations.
-
-    Returns:
-      Tensor of decoded observations.
-    """
-    return decoder_fn(num_latent=num_latent, output_shape=output_shape)
-
 
 @gin.configurable("discriminator", whitelist=["discriminator_fn"])
 def make_discriminator(num_latent,

@@ -21,52 +21,52 @@ from disentanglement_lib.data.ground_truth import ground_truth_data
 
 
 class IdentityObservationsData(ground_truth_data.GroundTruthData):
-  """Data set where dummy factors are also the observations."""
+    """Data set where dummy factors are also the observations."""
 
-  @property
-  def num_factors(self):
-    return 10
+    @property
+    def num_factors(self):
+        return 10
 
-  @property
-  def observation_shape(self):
-    return 10
+    @property
+    def observation_shape(self):
+        return 10
 
-  @property
-  def factors_num_values(self):
-    return [1] * 10
+    @property
+    def factors_num_values(self):
+        return [1] * 10
 
-  def sample_factors(self, num, random_state):
-    """Sample a batch of factors Y."""
-    return random_state.random_integers(10, size=(num, self.num_factors))
+    def sample_factors(self, num, random_state):
+        """Sample a batch of factors Y."""
+        return random_state.random_integers(10, size=(num, self.num_factors))
 
-  def sample_observations_from_factors(self, factors, random_state):
-    """Sample a batch of observations X given a batch of factors Y."""
-    return factors
+    def sample_observations_from_factors(self, factors, random_state):
+        """Sample a batch of observations X given a batch of factors Y."""
+        return factors
 
-  @property
-  def factor_names(self):
-    return ["Factor {}".format(i) for i in range(self.num_factors)]
+    @property
+    def factor_names(self):
+        return ["Factor {}".format(i) for i in range(self.num_factors)]
 
 
 class DummyData(ground_truth_data.GroundTruthData):
-  """Dummy image data set of random noise used for testing."""
+    """Dummy image data set of random noise used for testing."""
 
-  @property
-  def num_factors(self):
-    return 10
+    @property
+    def num_factors(self):
+        return 10
 
-  @property
-  def factors_num_values(self):
-    return [5] * 10
+    @property
+    def factors_num_values(self):
+        return [5] * 10
 
-  @property
-  def observation_shape(self):
-    return [64, 64, 1]
+    @property
+    def observation_shape(self):
+        return [64, 64, 1]
 
-  def sample_factors(self, num, random_state):
-    """Sample a batch of factors Y."""
-    return random_state.randint(5, size=(num, self.num_factors))
+    def sample_factors(self, num, random_state):
+        """Sample a batch of factors Y."""
+        return random_state.randint(5, size=(num, self.num_factors))
 
-  def sample_observations_from_factors(self, factors, random_state):
-    """Sample a batch of observations X given a batch of factors Y."""
-    return random_state.random_sample(size=(factors.shape[0], 64, 64, 1))
+    def sample_observations_from_factors(self, factors, random_state):
+        """Sample a batch of observations X given a batch of factors Y."""
+        return random_state.random_sample(size=(factors.shape[0], 64, 64, 1))

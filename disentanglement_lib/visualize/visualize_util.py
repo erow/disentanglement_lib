@@ -40,7 +40,7 @@ def save_image(image, image_path):
     image = np.ascontiguousarray(image)
     image *= 255.
     image = image.astype("uint8")
-    with torch.gfile.Open(image_path, "wb") as path:
+    with open(image_path, "wb") as path:
         img = Image.fromarray(image, mode="RGB")
         img.save(path)
 
@@ -139,7 +139,7 @@ def add_below(image, padding_px=10, value=None):
         image = np.repeat(image, 3, 2)
     if image.shape[2] != 3:
         raise ValueError("Could not convert image to have three channels.")
-    with torch.gfile.Open(resources.get_file("disentanglement_lib.png"), "rb") as f:
+    with open(resources.get_file("disentanglement_lib.png"), "rb") as f:
         footer = np.array(Image.open(f).convert("RGB")) * 1.0 / 255.
     missing_px = image.shape[1] - footer.shape[1]
     if missing_px < 0:

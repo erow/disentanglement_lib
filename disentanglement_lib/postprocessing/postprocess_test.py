@@ -24,6 +24,9 @@ from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import resources
 import gin
 
+absltest.flags.DEFINE_string('test_tempdir', '/tmp/test', 'no')
+absltest.FLAGS(['evaluation_test.py'])
+
 
 class PostprocessTest(parameterized.TestCase):
 

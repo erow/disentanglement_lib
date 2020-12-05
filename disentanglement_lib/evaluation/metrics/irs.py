@@ -29,7 +29,7 @@ import gin
 
 @gin.configurable(
     "irs",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_irs(ground_truth_data,
                 representation_function,

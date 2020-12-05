@@ -18,21 +18,58 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from typing import Any
+import os
 
 import torch
 import gin
-import pytorch_lightning as pl
+from torch import nn
 import torch.nn.functional as F
 
 
-class GaussianEncoderModel(pl.LightningModule):
+class Savable(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.arags = args
+        self.kwargs = kwargs
+
+    def save(self, model_dir, filename='ckp.pth'):
+        ckp_path = os.path.join(model_dir, filename)
+        ckp_dict = dict()
+        ckp_dict['name'] = self.__class__.__name__
+        ckp_dict['args'] = self.arags
+        ckp_dict['kwargs'] = self.kwargs
+        ckp_dict['model'] = self.state_dict()
+        torch.save(ckp_dict, ckp_path)
+
+
+def all_subclasses(cls):
+    return set(cls.__subclasses__()).union(
+        [s for c in cls.__subclasses__() for s in all_subclasses(c)])
+
+
+def load(cls, model_dir, filename='ckp.pth'):
+    ckp_path = os.path.join(model_dir, filename)
+    ckp_dict = torch.load(ckp_path)
+    for sc in all_subclasses(cls):
+        if sc.__name__ == ckp_dict['name']:
+            model = sc(*ckp_dict['args'], **ckp_dict['kwargs'])
+            model.load_state_dict(ckp_dict['model'])
+            return model
+    raise LookupError('Unexpected model:%s' % ckp_dict['name'])
+
+
+class GaussianModel(Savable):
     """Abstract base class of a Gaussian encoder model."""
-    encode: None
-    decode: None
+    encode: callable(torch.Tensor)
+    decode: callable(torch.Tensor)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.arags = args
+        self.kwargs = kwargs
 
     def model_fn(self, features, labels):
-        """TPUEstimator compatible model function used for training/evaluation."""
+        """Compatible model function used for training/evaluation."""
         raise NotImplementedError()
 
     def sample_from_latent_distribution(self, z_mean, z_logvar):
@@ -43,87 +80,16 @@ class GaussianEncoderModel(pl.LightningModule):
             torch.exp(z_logvar / 2) * e,
         )
 
-    # pytorch_lightning
-
-    def forward(self, features):
-        return self.encode(features)
-
-    def training_step(self, batch, batch_idx):
-        # training_step defined the train loop. It is independent of forward
-        summary = self.model_fn(*batch)
-        for k, v in summary.items():
-            self.log(k, v)
-        return summary['loss']
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
-
-
-@gin.configurable("export_as_tf_hub", whitelist=[])
-def export_as_tf_hub(gaussian_encoder_model,
-                     observation_shape,
-                     checkpoint_path,
-                     export_path,
-                     drop_collections=None):
-    """Exports the provided GaussianEncoderModel as a TFHub module.
-
-    Args:
-      gaussian_encoder_model: GaussianEncoderModel to be exported.
-      observation_shape: Tuple with the observations shape.
-      checkpoint_path: String with path where to load weights from.
-      export_path: String with path where to save the TFHub module to.
-      drop_collections: List of collections to drop from the graph.
-    """
-
-    def module_fn(is_training):
-        """Module function used for TFHub export."""
-        with torch.variable_scope(torch.get_variable_scope(), reuse=torch.AUTO_REUSE):
-            # Add a signature for the Gaussian encoder.
-            image_placeholder = torch.placeholder(
-                dtype=torch.float32, shape=[None] + observation_shape)
-            mean, logvar = gaussian_encoder_model.gaussian_encoder(
-                image_placeholder, is_training)
-            hub.add_signature(
-                name="gaussian_encoder",
-                inputs={"images": image_placeholder},
-                outputs={
-                    "mean": mean,
-                    "logvar": logvar
-                })
-
-            # Add a signature for reconstructions.
-            latent_vector = gaussian_encoder_model.sample_from_latent_distribution(
-                mean, logvar)
-            reconstructed_images = gaussian_encoder_model.decode(
-                latent_vector, observation_shape, is_training)
-            hub.add_signature(
-                name="reconstructions",
-                inputs={"images": image_placeholder},
-                outputs={"images": reconstructed_images})
-
-            # Add a signature for the decoder.
-            latent_placeholder = torch.placeholder(
-                dtype=torch.float32, shape=[None, mean.get_shape()[1]])
-            decoded_images = gaussian_encoder_model.decode(latent_placeholder,
-                                                           observation_shape,
-                                                           is_training)
-
-            hub.add_signature(
-                name="decoder",
-                inputs={"latent_vectors": latent_placeholder},
-                outputs={"images": decoded_images})
-
-    # Export the module.
-    # Two versions of the model are exported:
-    #   - one for "test" mode (the default tag)
-    #   - one for "training" mode ("is_training" tag)
-    # In the case that the encoder/decoder have dropout, or BN layers, these two
-    # graphs are different.
-    tags_and_args = [
-        ({"train"}, {"is_training": True}),
-        (set(), {"is_training": False}),
-    ]
-    spec = hub.create_module_spec(module_fn, tags_and_args=tags_and_args,
-                                  drop_collections=drop_collections)
-    spec.export(export_path, checkpoint_path=checkpoint_path)
+# @gin.configurable('model_hub')
+# def import_model(checkpoint_path, observation_shape, model=gin.REQUIRED):
+#     module_path = os.path.join(checkpoint_path, "model.pth")
+#     state_dict = torch.load(module_path)
+#     model = model(observation_shape)
+#     model.load_state_dict(state_dict)
+#     return model
+#
+#
+# def export_model(checkpoint_path, model):
+#     module_path = os.path.join(checkpoint_path, "model.pth")
+#     state = model.state_dict()
+#     torch.save(state, module_path)

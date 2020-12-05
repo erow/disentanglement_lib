@@ -31,7 +31,7 @@ import gin
 
 @gin.configurable(
     "reduced_downstream_task",
-    deneylist=["ground_truth_data", "representation_function", "random_state",
+    blacklist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_reduced_downstream_task(ground_truth_data,
                                     representation_function,
@@ -175,7 +175,7 @@ def compute_reduced_representation(mus_train,
 
 @gin.configurable(
     "factorwise_dci",
-    deneylist=["mus_train", "ys_train", "mus_test", "ys_test"])
+    blacklist=["mus_train", "ys_train", "mus_test", "ys_test"])
 def compute_factorwise_dci(mus_train, ys_train, mus_test, ys_test):
     """Computes the DCI importance matrix of the attributes.
 
