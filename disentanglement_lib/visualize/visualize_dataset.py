@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import pathlib
+
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.visualize import visualize_util
 import numpy as np
@@ -44,7 +46,7 @@ def visualize_dataset(dataset_name, output_path, num_animations=5,
     # Create output folder if necessary.
     path = os.path.join(output_path, dataset_name)
     if not os.path.isdir(path):
-        os.mkdir(path)
+        pathlib.Path(path).mkdir(parents=True)
 
     # Create still images.
     for i in range(data.num_factors):

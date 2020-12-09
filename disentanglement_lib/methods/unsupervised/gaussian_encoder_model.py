@@ -58,6 +58,7 @@ def load(cls, model_dir, filename='ckp.pth'):
     raise LookupError('Unexpected model:%s' % ckp_dict['name'])
 
 
+
 class GaussianModel(Savable):
     """Abstract base class of a Gaussian encoder model."""
     encode: callable(torch.Tensor)
@@ -67,6 +68,10 @@ class GaussianModel(Savable):
         super().__init__()
         self.arags = args
         self.kwargs = kwargs
+
+    def forward(self, images):
+        mu, logvar = self.encode(images)
+        return self.decode(mu)
 
     def model_fn(self, features, labels):
         """Compatible model function used for training/evaluation."""
@@ -79,17 +84,3 @@ class GaussianModel(Savable):
             z_mean,
             torch.exp(z_logvar / 2) * e,
         )
-
-# @gin.configurable('model_hub')
-# def import_model(checkpoint_path, observation_shape, model=gin.REQUIRED):
-#     module_path = os.path.join(checkpoint_path, "model.pth")
-#     state_dict = torch.load(module_path)
-#     model = model(observation_shape)
-#     model.load_state_dict(state_dict)
-#     return model
-#
-#
-# def export_model(checkpoint_path, model):
-#     module_path = os.path.join(checkpoint_path, "model.pth")
-#     state = model.state_dict()
-#     torch.save(state, module_path)

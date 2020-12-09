@@ -39,7 +39,7 @@ def save_image(image, image_path):
         image = np.repeat(image, 3, axis=2)
     image = np.ascontiguousarray(image)
     image *= 255.
-    image = image.astype("uint8")
+    image = image.astype(np.uint8)  # disable the converting warning
     with open(image_path, "wb") as path:
         img = Image.fromarray(image, mode="RGB")
         img.save(path)
@@ -60,6 +60,7 @@ def grid_save_images(images, image_path):
         for i in range(side_length)
     ]
     tiled_image = np.concatenate(image_rows, axis=1)
+    print(image_path)
     save_image(tiled_image, image_path)
 
 

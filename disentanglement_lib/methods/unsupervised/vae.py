@@ -32,6 +32,8 @@ from six.moves import zip
 import torch
 import gin
 
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
+
 
 @gin.configurable("model", whitelist=["num_latent", "encoder_fn", "decoder_fn"])
 class BaseVAE(gaussian_encoder_model.GaussianModel):
@@ -42,10 +44,16 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
                  encoder_fn=gin.REQUIRED,
                  decoder_fn=gin.REQUIRED,
                  **kwargs):
-        super().__init__(input_shape, num_latent=num_latent,
-                         encoder_fn=encoder_fn.__wrapped__,
-                         decoder_fn=decoder_fn.__wrapped__,
-                         **kwargs)
+        if hasattr(encoder_fn, '__wrapped__'):
+            super().__init__(input_shape, num_latent=num_latent,
+                             encoder_fn=encoder_fn.__wrapped__,
+                             decoder_fn=decoder_fn.__wrapped__,
+                             **kwargs)
+        else:
+            super().__init__(input_shape, num_latent=num_latent,
+                             encoder_fn=encoder_fn,
+                             decoder_fn=decoder_fn,
+                             **kwargs)
 
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
         self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
@@ -392,3 +400,7 @@ class BetaTCVAE(BaseVAE):
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         tc = (self.beta - 1.) * total_correlation(z_sampled, z_mean, z_logvar)
         return tc + kl_loss
+
+
+def load_model(model_dir, filename='ckp.pth'):
+    return load(GaussianModel, model_dir, filename)

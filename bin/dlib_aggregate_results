@@ -27,7 +27,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
     "result_file_pattern",
-    "*/metrics/*/unsupervised/results/aggregate/evaluation.json",
+    "*/metrics/*/*/results/aggregate/evaluation.json",
     "String with glob pattern to all the result files that "
     "should be aggregated (e.g. output/*/results/aggregate/evaluation.json).")
 flags.DEFINE_string("output_path", "results.json",

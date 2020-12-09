@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+A little patch for gin configure, because google missed the __wrapped__ for decoration.
+"""
 import gin
 from gin import config_is_locked, config_parser
 from gin.config import Configurable, _REGISTRY, _decorate_fn_or_cls, _make_gin_wrapper, _validate_parameters, \
@@ -66,6 +69,7 @@ def _make_configurable(fn_or_cls,
 
     decorated_fn_or_cls = _decorate_fn_or_cls(
         decorator, fn_or_cls, subclass=subclass)
+    # patch
     decorated_fn_or_cls.__wrapped__ = fn_or_cls
     _REGISTRY[selector] = Configurable(
         decorated_fn_or_cls,

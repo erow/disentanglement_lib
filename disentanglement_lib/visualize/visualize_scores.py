@@ -20,6 +20,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import pathlib
 
 import matplotlib
 
@@ -79,7 +80,7 @@ def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
     plot_bar_palette(palette, max_val, ax)
 
     if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
+        pathlib.Path(output_dir).mkdir(parents=True)
     output_path = os.path.join(output_dir, "{}.png".format(name))
     with open(output_path, "wb") as path:
         fig.savefig(path, bbox_inches="tight")
@@ -168,7 +169,7 @@ def plot_recovery_vs_independent(matrix, output_dir, name):
     plt.xlabel("Threshold")
     plt.ylabel("Number of Factors")
     if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
+        pathlib.Path(output_dir).mkdir(parents=True)
     output_path = os.path.join(output_dir, name + ".png")
     with open(output_path, "wb") as path:
         fig.savefig(path, bbox_inches="tight")

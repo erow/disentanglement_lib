@@ -18,6 +18,7 @@
 Based on the paper https://arxiv.org/abs/1811.00007.
 """
 import os
+import pathlib
 
 from disentanglement_lib.evaluation.metrics.irs import scalable_disentanglement_score
 import matplotlib
@@ -56,7 +57,7 @@ def vis_all_interventional_effects(gen_factors, latents, output_dir):
 
     fig.tight_layout()
     if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
+        pathlib.Path(output_dir).mkdir(parents=True)
     output_path = os.path.join(output_dir, "interventional_effect.png")
     with open(output_path, "wb") as path:
         fig.savefig(path)

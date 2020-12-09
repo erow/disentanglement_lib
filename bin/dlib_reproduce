@@ -133,7 +133,7 @@ def main(unused_argv):
 
     # Iterate through the disentanglement metrics.
     eval_configs = sorted(study.get_eval_config_files())
-    eval_configs = eval_configs
+    eval_configs = eval_configs[1:]  # TODO remove DCI for taking too much time.
 
     for post_name in ['mean', 'sample']:
         post_dir = os.path.join(output_directory, "postprocessed",

@@ -114,8 +114,8 @@ def train(model_dir,
             opt.step()
             global_step = global_step + 1
 
-            # if (global_step + 1) % save_checkpoints_steps == 0:
-            #     torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
+            if (global_step + 1) % save_checkpoints_steps == 0:
+                torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
             if global_step >= training_steps:
                 break
 

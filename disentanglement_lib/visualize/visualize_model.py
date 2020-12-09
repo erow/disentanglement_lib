@@ -19,9 +19,13 @@ from __future__ import division
 from __future__ import print_function
 import numbers
 import os
+import pathlib
 import shutil
 
+import torch
+
 from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.methods.unsupervised.vae import load_model
 from disentanglement_lib.utils import results
 from disentanglement_lib.visualize import visualize_util
 from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_effects
@@ -81,50 +85,52 @@ def visualize(model_dir,
 
     dataset = named_data.get_named_ground_truth_data()
     num_pics = 64
-    module_path = os.path.join(model_dir, "tfhub")
 
-    with hub.eval_function_for_module(module_path) as f:
+    model = load_model(model_dir)
+    model.eval()
+    with torch.no_grad():
+        def _encoder(obs):
+            obs = torch.Tensor(obs.transpose((0, 3, 1, 2)))  # convert tf format to torch's
+            mu, logvar = model.encode(obs)
+            mu, logvar = mu.numpy(), logvar.numpy()
+            return mu, logvar
+
         # Save reconstructions.
         real_pics = dataset.sample_observations(num_pics, random_state)
-        raw_pics = f(
-            dict(images=real_pics), signature="reconstructions",
-            as_dict=True)["images"]
+        real_pics = torch.Tensor(real_pics.transpose((0, 3, 1, 2)))  # convert tf format to torch's
+        raw_pics = model(real_pics)
+
         pics = activation(raw_pics)
+        pics.transpose((0, 2, 3, 1))
         paired_pics = np.concatenate((real_pics, pics), axis=2)
         paired_pics = [paired_pics[i, :, :, :] for i in range(paired_pics.shape[0])]
         results_dir = os.path.join(output_dir, "reconstructions")
-        if not gfile.IsDirectory(results_dir):
-            gfile.MakeDirs(results_dir)
+        if not os.path.isdir(results_dir):
+            pathlib.Path(results_dir).mkdir(parents=True)
         visualize_util.grid_save_images(
             paired_pics, os.path.join(results_dir, "reconstructions.jpg"))
 
         # Save samples.
         def _decoder(latent_vectors):
-            return f(
-                dict(latent_vectors=latent_vectors),
-                signature="decoder",
-                as_dict=True)["images"]
+            torch_imgs = model.decode(torch.Tensor(latent_vectors)).numpy()
+            return torch_imgs.transpose((0, 2, 3, 1))
 
-        num_latent = int(gin_dict["encoder.num_latent"])
+        num_latent = model.num_latent
         num_pics = 64
         random_codes = random_state.normal(0, 1, [num_pics, num_latent])
         pics = activation(_decoder(random_codes))
         results_dir = os.path.join(output_dir, "sampled")
-        if not gfile.IsDirectory(results_dir):
-            gfile.MakeDirs(results_dir)
+        if not os.path.isdir(results_dir):
+            pathlib.Path(results_dir).mkdir(parents=True)
         visualize_util.grid_save_images(pics,
                                         os.path.join(results_dir, "samples.jpg"))
 
         # Save latent traversals.
-        result = f(
-            dict(images=dataset.sample_observations(num_pics, random_state)),
-            signature="gaussian_encoder",
-            as_dict=True)
-        means = result["mean"]
-        logvars = result["logvar"]
+        means, logvars = _encoder(dataset.sample_observations(num_pics, random_state))
+
         results_dir = os.path.join(output_dir, "traversals")
-        if not gfile.IsDirectory(results_dir):
-            gfile.MakeDirs(results_dir)
+        if not os.path.isdir(results_dir):
+            pathlib.Path(results_dir).mkdir(parents=True)
         for i in range(means.shape[1]):
             pics = activation(
                 latent_traversal_1d_multi_dim(_decoder, means[i, :], None))
@@ -133,8 +139,8 @@ def visualize(model_dir,
 
         # Save the latent traversal animations.
         results_dir = os.path.join(output_dir, "animated_traversals")
-        if not gfile.IsDirectory(results_dir):
-            gfile.MakeDirs(results_dir)
+        if not os.path.isdir(results_dir):
+            pathlib.Path(results_dir).mkdir(parents=True)
 
         # Cycle through quantiles of a standard Gaussian.
         for i, base_code in enumerate(means[:num_animations]):
@@ -199,8 +205,8 @@ def visualize(model_dir,
         # Interventional effects visualization.
         factors = dataset.sample_factors(num_points_irs, random_state)
         obs = dataset.sample_observations_from_factors(factors, random_state)
-        latents = f(
-            dict(images=obs), signature="gaussian_encoder", as_dict=True)["mean"]
+
+        latents, _ = _encoder(obs)
         results_dir = os.path.join(output_dir, "interventional_effects")
         vis_all_interventional_effects(factors, latents, results_dir)
 
@@ -287,8 +293,12 @@ def latent_traversal_1d_multi_dim(generator_fn,
 
 
 def sigmoid(x):
+    if isinstance(x, torch.Tensor):
+        return sigmoid(x.numpy())
     return stats.logistic.cdf(x)
 
 
 def tanh(x):
+    if isinstance(x, torch.Tensor):
+        return tanh(x.numpy())
     return np.tanh(x) / 2. + .5
