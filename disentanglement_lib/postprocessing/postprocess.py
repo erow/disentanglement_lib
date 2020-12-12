@@ -135,3 +135,4 @@ def postprocess(model_dir,
     results_dict = dict(elapsed_time=time.time() - experiment_timer)
     results.update_result_directory(results_dir, "postprocess", results_dict,
                                     original_results_dir)
+    return representation

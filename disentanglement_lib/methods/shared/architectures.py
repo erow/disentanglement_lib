@@ -25,7 +25,8 @@ import torch
 from torch import nn
 import gin
 
-@gin.configurable("discriminator", whitelist=["discriminator_fn"])
+
+@gin.configurable("discriminator", allowlist=["discriminator_fn"])
 def make_discriminator(num_latent,
                        discriminator_fn=gin.REQUIRED):
     """Gin wrapper to create and apply a discriminator configurable with gin.
@@ -48,7 +49,7 @@ def make_discriminator(num_latent,
     return discriminator_fn(num_latent)
 
 
-@gin.configurable("fc_encoder", whitelist=[])
+@gin.configurable("fc_encoder", allowlist=[])
 class fc_encoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
     Based on row 1 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -81,7 +82,7 @@ class fc_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("conv_encoder", whitelist=[])
+@gin.configurable("conv_encoder", allowlist=[])
 class conv_encoder(nn.Module):
     """Convolutional encoder used in beta-VAE paper for the chairs data.
 
@@ -123,7 +124,7 @@ class conv_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("fc_decoder", whitelist=[])
+@gin.configurable("fc_decoder", allowlist=[])
 class fc_decoder(nn.Module):
     def __init__(self, num_latent, output_shape):
         super().__init__()
@@ -150,7 +151,7 @@ class View(nn.Module):
         return x.view(*self.shape)
 
 
-@gin.configurable("deconv_decoder", whitelist=[])
+@gin.configurable("deconv_decoder", allowlist=[])
 class deconv_decoder(nn.Module):
     """Convolutional decoder used in beta-VAE paper for the chairs data.
 
@@ -187,7 +188,7 @@ class deconv_decoder(nn.Module):
         return torch.reshape(x, shape=[-1] + self.output_shape)
 
 
-@gin.configurable("fc_discriminator", whitelist=[])
+@gin.configurable("fc_discriminator", allowlist=[])
 class fc_discriminator(nn.Module):
     """Fully connected discriminator used in FactorVAE paper for all datasets.
 
@@ -227,7 +228,7 @@ class fc_discriminator(nn.Module):
         return logits, clipped
 
 
-@gin.configurable("test_encoder", whitelist=[])
+@gin.configurable("test_encoder", allowlist=[])
 class test_encoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
     Based on row 1 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -258,7 +259,7 @@ class test_encoder(nn.Module):
         return means, log_var
 
 
-@gin.configurable("test_decoder", whitelist=[])
+@gin.configurable("test_decoder", allowlist=[])
 class test_decoder(nn.Module):
     """Fully connected encoder used in beta-VAE paper for the dSprites data.
 

@@ -23,7 +23,7 @@ import torch.nn.functional as F
 import gin
 
 
-@gin.configurable("bernoulli_loss", whitelist=["subtract_true_image_entropy"])
+@gin.configurable("bernoulli_loss", allowlist=["subtract_true_image_entropy"])
 def bernoulli_loss(true_images,
                    reconstructed_images,
                    activation,
@@ -60,7 +60,7 @@ def bernoulli_loss(true_images,
     return loss - loss_lower_bound
 
 
-@gin.configurable("l2_loss", whitelist=[])
+@gin.configurable("l2_loss", allowlist=[])
 def l2_loss(true_images, reconstructed_images, activation):
     """Computes the l2 loss."""
     if activation == "logits":

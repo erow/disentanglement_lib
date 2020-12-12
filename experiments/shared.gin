@@ -1,0 +1,11 @@
+
+train.batch_size = 128
+train.training_steps = 10000
+train.random_seed=0
+train.opt_name = @AdamOpt
+AdamOpt.args = {'lr':0.0001}
+
+model.encoder_fn = @conv_encoder
+model.decoder_fn = @deconv_decoder
+model.num_latent = 10
+reconstruction_loss.loss_fn = @bernoulli_loss

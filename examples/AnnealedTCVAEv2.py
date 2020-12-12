@@ -16,15 +16,15 @@ import torch
 import gin
 import numpy as np
 
-from disentanglement_lib.visualize.visualize_model import visualize
-from examples.TC import *
-import wandb
 beta = None
 
+# 0. Settings
+# ------------------------------------------------------------------------------
+# By default, we save all the results in subdirectories of the following path.
 base_path = "example_output"
 overwrite = True
 # We save the results in a `vae` subfolder.
-path_vae = os.path.join(base_path, "AnnealedTCVAE")
+path_vae = os.path.join(base_path, "AnnealedTCVAEv2")
 
 
 @gin.configurable("AnnealedTCVAE")  # This will allow us to reference the model.
@@ -34,50 +34,39 @@ class AnnealedTCVAE(vae.BaseVAE):
     def __init__(self, input_shape,
                  beta=gin.REQUIRED,
                  gamma=gin.REQUIRED,
-                 c_max=gin.REQUIRED,
-                 iteration_threshold=gin.REQUIRED, **kwargs):
+                 **kwargs):
         """
         Args:
           gamma: Hyperparameter for the regularizer.
           c_max: Maximum capacity of the bottleneck.
           iteration_threshold: How many iterations to reach c_max.
         """
-        super().__init__(input_shape, beta=beta, gamma=gamma,
-                         c_max=c_max,
-                         iteration_threshold=iteration_threshold, **kwargs)
+        super().__init__(input_shape,
+                         beta=beta,
+                         gamma=gamma,
+                         **kwargs)
         self.beta = beta
         self.gamma = gamma
-        self.c_max = c_max
-        self.iteration_threshold = iteration_threshold
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        c = 1 - anneal(1, self.global_step, self.iteration_threshold)
-        log_pz, log_qz, log_prod_qzi, log_q_zCx = get_log_pz_qz_prodzi_qzCx(z_sampled,
-                                                                            (z_mean, z_logvar),
-                                                                            32 * 32 * 40 * 6 * 3,
-                                                                            is_mss=True)
+        c = 1 - anneal(1, self.global_step, 1)
 
-        # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
-        mi_loss = (log_q_zCx - log_qz).mean()
-        # TC[z] = KL[q(z)||\prod_i z_i]
-        tc_loss = (log_qz - log_prod_qzi).mean()
-        # dw_kl_loss is KL[q(z)||p(z)] instead of usual KL[q(z|x)||p(z))]
-        dw_kl_loss = (log_prod_qzi - log_pz).mean()
+        log_qzCx = vae.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = vae.gaussian_log_density(z_sampled,
+                                          torch.zeros_like(z_mean),
+                                          torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
 
-        wandb.log({
-            'mi': mi_loss,
-            'tc': tc_loss,
-            'dw': dw_kl_loss,
-            'c': c
-        })
-        return mi_loss * c * 100 + self.beta * tc_loss + dw_kl_loss
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        return self.gamma * mi * c + self.beta * tc + dw_kl_loss
+
 
 gin_bindings = [
     "train.model = @AnnealedTCVAE",
     "AnnealedTCVAE.beta=6",
-    "AnnealedTCVAE.gamma=1000",
-    "AnnealedTCVAE.c_max=50.",
-    "AnnealedTCVAE.iteration_threshold=100000"
+    "AnnealedTCVAE.gamma=620.0",
 ]
 
 # The main training protocol of disentanglement_lib is defined in the
@@ -136,5 +125,13 @@ results_path = os.path.join(base_path, "results.json")
 aggregate_results.aggregate_results_to_json(
     pattern, results_path)
 
-# 7. Visualize the model.
-visualize(model_path, os.path.join(path, "visualization"))
+# 7. Print out the final Pandas data frame with the results.
+# ------------------------------------------------------------------------------
+# The aggregated results contains for each computed metric all the configuration
+# options and all the results captured in the steps along the pipeline. This
+# should make it easy to analyze the experimental results in an interactive
+# Python shell. At this point, note that the scores we computed in this example
+# are not realistic as we only trained the models for a few steps and our custom
+# metric always returns 1.
+model_results = aggregate_results.load_aggregated_json_results(results_path)
+print(model_results)

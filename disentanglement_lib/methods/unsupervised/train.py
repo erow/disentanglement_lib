@@ -81,7 +81,7 @@ def train(model_dir,
     # Obtain the dataset. tf format
     dataset = named_data.get_named_ground_truth_data()
     tf_data_shape = dataset.observation_shape
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=8, shuffle=True)
+    dl = DataLoader(dataset, batch_size=batch_size, num_workers=0, shuffle=True)
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 
@@ -91,7 +91,6 @@ def train(model_dir,
     save_checkpoints_steps = training_steps // 10
     input_shape = [tf_data_shape[2], tf_data_shape[0], tf_data_shape[1]]
     autoencoder = model(input_shape)
-    run = wandb.init(project='dislib')
 
     device = 'cuda'
 
@@ -99,30 +98,28 @@ def train(model_dir,
     opt = opt_name(autoencoder.parameters())
     global_step = 0
 
-    autoencoder.save(model_dir)
-    load(GaussianModel, model_dir)
+    summary = {}
     while global_step < training_steps:
         for imgs, labels in dl:
             imgs, labels = imgs.to(device), labels.to(device)
             autoencoder.global_step = global_step
             summary = autoencoder.model_fn(imgs, labels)
             loss = summary['loss']
-            run.log(summary)
+            wandb.log(summary)
 
             opt.zero_grad()
             loss.backward()
             opt.step()
             global_step = global_step + 1
 
-            if (global_step + 1) % save_checkpoints_steps == 0:
-                torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
+            # if (global_step + 1) % save_checkpoints_steps == 0:
+            #     torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
             if global_step >= training_steps:
                 break
 
     # Save model as a TFHub module.
     autoencoder.save(model_dir)
-    run.save(f'{model_dir}/ckp.pth')
-    # wandb.log_artifact()
+    wandb.save(f'{model_dir}/ckp.pth')
 
     # Save the results. The result dir will contain all the results and config
     # files that we copied along, as we progress in the pipeline. The idea is that

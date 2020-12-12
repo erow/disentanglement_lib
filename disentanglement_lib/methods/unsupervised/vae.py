@@ -29,13 +29,14 @@ from disentanglement_lib.methods.shared import losses  # pylint: disable=unused-
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from six.moves import range
 from six.moves import zip
+import numpy as np
 import torch
 import gin
 
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
 
 
-@gin.configurable("model", whitelist=["num_latent", "encoder_fn", "decoder_fn"])
+@gin.configurable("model", allowlist=["num_latent", "encoder_fn", "decoder_fn"])
 class BaseVAE(gaussian_encoder_model.GaussianModel):
     """Abstract base class of a basic Gaussian encoder model."""
 
@@ -75,6 +76,7 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
 
         summary = {'reconstruction_loss': reconstruction_loss,
                    'elbo': -elbo,
+                   'kl_loss': kl_loss,
                    'loss': loss}
         kl = 0.5 * torch.mean(
             torch.square(z_mean.data) + torch.exp(z_logvar.data) - z_logvar.data - 1, [0])
@@ -233,6 +235,7 @@ class FactorVAE(BaseVAE):
             0.5 * torch.mean(torch.log(probs_z_shuffle[:, 1])))
 
         summary = {'reconstruction_loss': reconstruction_loss,
+                   'discr_loss': discr_loss,
                    'loss': factor_vae_loss}
 
         kl = 0.5 * torch.mean(
@@ -341,6 +344,26 @@ def gaussian_log_density(samples, mean, log_var):
     return -0.5 * (tmp * tmp * inv_sigma + log_var + normalization)
 
 
+def decompose(z, z_mean, z_logvar):
+    log_qz_prob = gaussian_log_density(
+        torch.unsqueeze(z, 1), torch.unsqueeze(z_mean, 0),
+        torch.unsqueeze(z_logvar, 0))
+    # Compute log prod_l p(z(x_j)_l) = sum_l(log(sum_i(q(z(z_j)_l|x_i)))
+    # + constant) for each sample in the batch, which is a vector of size
+    # [batch_size,].
+    log_qz_product = torch.sum(
+        torch.logsumexp(log_qz_prob, dim=1, keepdim=False),
+        dim=1,
+        keepdim=False)
+    # Compute log(q(z(x_j))) as log(sum_i(q(z(x_j)|x_i))) + constant =
+    # log(sum_i(prod_l q(z(x_j)_l|x_i))) + constant.
+    log_qz = torch.logsumexp(
+        torch.sum(log_qz_prob, dim=2, keepdim=False),
+        dim=1,
+        keepdim=False)
+    return log_qz_prob, log_qz, log_qz_product
+
+
 def total_correlation(z, z_mean, z_logvar):
     """Estimate of total correlation on a batch.
 
@@ -360,6 +383,7 @@ def total_correlation(z, z_mean, z_logvar):
     # Compute log(q(z(x_j)|x_i)) for every sample in the batch, which is a
     # tensor of size [batch_size, batch_size, num_latents]. In the following
     # comments, [batch_size, batch_size, num_latents] are indexed by [j, i, l].
+    # q(z,n); [ sample_z: batch_size, sample_x: batch_size, latent: num_latent]
     log_qz_prob = gaussian_log_density(
         torch.unsqueeze(z, 1), torch.unsqueeze(z_mean, 0),
         torch.unsqueeze(z_logvar, 0))

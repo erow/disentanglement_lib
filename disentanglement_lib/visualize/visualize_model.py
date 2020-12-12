@@ -32,9 +32,14 @@ from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_e
 import numpy as np
 from scipy import stats
 from six.moves import range
-
+import brewer2mpl
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import gin
 
+bmap = brewer2mpl.get_map('Set1', 'qualitative', 3)
+colors = bmap.mpl_colors
+VAR_THRESHOLD = 5e-2
 
 def visualize(model_dir,
               output_dir,
@@ -207,8 +212,10 @@ def visualize(model_dir,
         obs = dataset.sample_observations_from_factors(factors, random_state)
 
         latents, _ = _encoder(obs)
-        results_dir = os.path.join(output_dir, "interventional_effects")
-        vis_all_interventional_effects(factors, latents, results_dir)
+        vis_all_interventional_effects(factors, latents, os.path.join(output_dir, "interventional_effects"))
+
+        # Factors projection
+        vis_projection(factors, latents, results_dir)
 
     # Finally, we clear the gin config that we have set.
     gin.clear_config()
@@ -302,3 +309,53 @@ def tanh(x):
     if isinstance(x, torch.Tensor):
         return tanh(x.numpy())
     return np.tanh(x) / 2. + .5
+
+
+def vis_projection(factors, latents, results_dir):
+    std = latents.std(0)
+    l1, l2 = np.argsort(std)[-2:]
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    plt.scatter(latents[:, l1], latents[:, l2])
+    plt.savefig(os.path.join(results_dir, 'projection.png'))
+
+
+def plot_latent_vs_ground(z,
+                          z_inds=None,
+                          latnt_sizes=None):
+    if latnt_sizes is None:
+        latnt_sizes = [3, 6, 40, 32, 32]
+    K = z.shape[-1]
+    num_factor = len(latnt_sizes)
+    qz_means = z.reshape(*(latnt_sizes + [K])).cpu().data
+    var = torch.std(qz_means.reshape(-1, K), dim=0).pow(2)
+
+    active_units = torch.arange(0, K)[var > VAR_THRESHOLD].long()
+    print('Active units: ' + ','.join(map(str, active_units.tolist())))
+    n_active = len(active_units)
+    print('Number of active units: {}/{}'.format(n_active, K))
+
+    if z_inds is None:
+        z_inds = active_units
+    num_active = len(z_inds)
+    fig, axes = plt.subplots(num_active, num_factor, figsize=(num_factor, num_active + 1))  # default is (8,6)
+
+    for j in range(num_factor):
+        mean_latent = qz_means.mean(dim=[dim for dim in range(num_factor) if dim != j])
+        for ax, i in zip(axes[:, j], z_inds):
+            ax.plot(mean_latent[:, i].numpy(), )
+            ax.set_xticks([])
+            ax.set_yticks([])
+            x0, x1 = ax.get_xlim()
+            y0, y1 = ax.get_ylim()
+            ax.set_aspect(abs(x1 - x0) / abs(y1 - y0))
+            if i == z_inds[-1]:
+                ax.set_xlabel(f'factor_{j}')
+            if j == 0:
+                ax.set_ylabel(f'z_{i}')
+                ax.yaxis.tick_right()
+
+    fig.text(0.5, 0.03, 'Ground Truth', ha='center')
+    fig.text(0.01, 0.5, 'Learned Latent Variables ', va='center', rotation='vertical')
+
+    return fig
