@@ -31,21 +31,14 @@ setup(
     scripts=[
         'bin/dlib_aggregate_results',
         'bin/dlib_reproduce',
-        'bin/dlib_reason',
         'bin/dlib_visualize_dataset',
         'bin/dlib_evaluate',
-        'bin/dlib_udr',
         'bin/dlib_postprocess',
         'bin/dlib_train',
         'bin/dlib_visualize_dataset',
         'bin/dlib_visualize_model',
         'bin/dlib_tests',
         'bin/dlib_download_data',
-        'bin/dlib_reproduce_jmlr',
-        'bin/dlib_reproduce_semi_supervised',
-        'bin/dlib_reproduce_weakly_supervised',
-        'bin/dlib_train_semi_supervised',
-        'bin/dlib_train_weakly_supervised',
     ],
     install_requires=[
         'future',
@@ -61,7 +54,8 @@ setup(
         'pandas>=0.23.0',
         'scipy>=1.0.0',
         'seaborn',
-        'torch'
+        'torch',
+        'absl-py'
     ],
     extras_require={
     },
