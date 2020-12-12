@@ -13,7 +13,6 @@ from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
 import torch
 import gin
-import gin
 import numpy as np
 
 beta = None
@@ -34,41 +33,7 @@ def conv_group_encoder(input_tensor, num_latent, is_training=True):
       log_var: Output tensor of shape (batch_size, num_latent) with latent
         variable log variances.
     """
-    global beta
-    BETA = tf.constant([100, 40, 20, 4], dtype=tf.float32)
-    STAGE = tf.constant(stas, dtype=tf.int32)
 
-    step = tf.train.get_global_step()
-    if step is None:
-        stage = tf.constant(3, name='stage')
-    else:
-        stage = tf.gather(STAGE, step, name='stage')
-        beta = tf.gather(BETA, stage, name='beta')
-        tf.summary.scalar('stage', stage)
-        tf.summary.scalar('beta', beta)
-
-    mean_list, log_var_list = [], []
-    dim = num_latent // 4
-    for i in range(4):
-        mu, lvar = conv_encoder(input_tensor, dim, is_training)
-        mu = tf.cond(i <= stage,
-                     lambda: mu,
-                     lambda: tf.stop_gradient(mu))
-        lvar = tf.cond(i <= stage,
-                       lambda: lvar,
-                       lambda: tf.stop_gradient(lvar))
-
-        lr = tf.cond((tf.equal(stage, tf.Variable(i, dtype=tf.int32))), lambda: tf.constant(1.0),
-                     lambda: tf.constant(0.1))
-        lr_fun = lr_mult(lr)
-        mean_list.append(lr_fun(mu))
-        log_var_list.append(lr_fun(lvar))
-
-    means = tf.concat(mean_list, 1, name='means')
-    log_var = tf.concat(log_var_list, 1, name='log_var')
-
-    # means = tf.concat(mean_list,1)
-    # log_var = tf.concat(log_var_list,1)
     return means, log_var
 
 

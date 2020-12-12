@@ -1,37 +1,32 @@
-vae/AdamOptimizer.epsilon = 1e-08
-vae/AdamOptimizer.learning_rate = 0.0001
-vae/AdamOptimizer.name = 'Adam'
-vae/AdamOptimizer.use_locking = False
+# coding=utf-8
+# Copyright 2018 The DisentanglementLib Authors.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# Parameters for bernoulli_loss:
-# ==============================================================================
-bernoulli_loss.subtract_true_image_entropy = False
+dataset.name = "dsprites_full"
+train.batch_size = 64
+train.model = @vae
+vae.beta = 4
+train.random_seed = 0
+# We train for only 5 steps, in practice we train for 300000 steps.
+train.training_steps = 100000
+train.random_seed=0
+train.opt_name = @AdamOpt
+AdamOpt.args = {'lr':0.0001}
 
-# Parameters for conv_encoder:
-# ==============================================================================
-# None.
+model.encoder_fn = @conv_encoder
+model.decoder_fn = @deconv_decoder
+model.num_latent = 10
+reconstruction_loss.loss_fn = @bernoulli_loss
 
-# Parameters for dataset:
-# ==============================================================================
-dataset.name = 'dsprites_full'
 
-# Parameters for decoder:
-# ==============================================================================
-decoder.decoder_fn = @deconv_decoder
-
-# Parameters for deconv_decoder:
-# ==============================================================================
-# None.
-
-# Parameters for encoder:
-# ==============================================================================
-encoder.encoder_fn = @conv_encoder
-encoder.num_latent = 10
-
-# Parameters for export_as_tf_hub:
-# ==============================================================================
-export_as_tf_hub.drop_collections = None
-
-# Parameters for model:
-# ==============================================================================
-model.model = @vae

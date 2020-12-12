@@ -214,8 +214,6 @@ def visualize(model_dir,
         latents, _ = _encoder(obs)
         vis_all_interventional_effects(factors, latents, os.path.join(output_dir, "interventional_effects"))
 
-        # Factors projection
-        vis_projection(factors, latents, results_dir)
 
     # Finally, we clear the gin config that we have set.
     gin.clear_config()

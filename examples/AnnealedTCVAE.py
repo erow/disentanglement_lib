@@ -84,6 +84,8 @@ gin_bindings = [
 # disentanglement_lib.methods.unsupervised.train module. To configure
 # training we need to provide a gin config. For a standard VAE, you may have a
 # look at model.gin on how to do this.
+
+
 train.train_with_gin(
     os.path.join(path_vae, "model"), overwrite, ["model.gin"],
     gin_bindings)
@@ -125,16 +127,3 @@ for path in [path_vae]:
     representation_path = os.path.join(path, "representation")
     evaluate.evaluate_with_gin(
         representation_path, result_path, overwrite, gin_bindings=gin_bindings)
-
-# 6. Aggregate the results.
-# ------------------------------------------------------------------------------
-# In the previous steps, we saved the scores to several output directories. We
-# can aggregate all the results using the following command.
-pattern = os.path.join(base_path,
-                       "*/metrics/*/results/aggregate/evaluation.json")
-results_path = os.path.join(base_path, "results.json")
-aggregate_results.aggregate_results_to_json(
-    pattern, results_path)
-
-# 7. Visualize the model.
-visualize(model_path, os.path.join(path, "visualization"))

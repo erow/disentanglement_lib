@@ -64,7 +64,8 @@ for stride in [1, 2, 4]:
 
             if not os.path.exists(representation_dir):
                 postprocess.postprocess_with_gin(model_dir, representation_dir, False,
-                                                 gin_bindings=["dataset.name='auto'",
+                                                 gin_bindings=["dataset.name='translation'",
+                                                               "discriminator.discriminator_fn=@fc_discriminator",
                                                                "postprocess.random_seed=0"])
 
             representation = np.load(os.path.join(representation_dir, 'representation.npy'), allow_pickle=True)
