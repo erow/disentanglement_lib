@@ -1,6 +1,6 @@
 
-train.batch_size = 128
-train.training_steps = 10000
+train.batch_size = 64
+train.training_steps = 100000
 train.random_seed=0
 train.opt_name = @AdamOpt
 AdamOpt.args = {'lr':0.0001}

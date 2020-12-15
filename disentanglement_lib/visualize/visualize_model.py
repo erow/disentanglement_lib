@@ -336,6 +336,8 @@ def plot_latent_vs_ground(z,
     if z_inds is None:
         z_inds = active_units
     num_active = len(z_inds)
+    if num_active == 0:
+        return plt.figure()
     fig, axes = plt.subplots(num_active, num_factor, figsize=(num_factor, num_active + 1))  # default is (8,6)
 
     for j in range(num_factor):

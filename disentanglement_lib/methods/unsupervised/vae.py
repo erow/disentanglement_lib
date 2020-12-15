@@ -64,6 +64,7 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
     def model_fn(self, features, labels):
         """Training compatible model function."""
         del labels
+        self.summary = {}
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         reconstructions = self.decode(z_sampled)
@@ -74,17 +75,18 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
         loss = torch.add(reconstruction_loss, regularizer)
         elbo = torch.add(reconstruction_loss, kl_loss)
 
-        summary = {'reconstruction_loss': reconstruction_loss,
-                   'elbo': -elbo,
-                   'kl_loss': kl_loss,
-                   'loss': loss}
+        self.summary['reconstruction_loss'] = reconstruction_loss
+        self.summary['elbo'] = -elbo
+        self.summary['kl_loss'] = kl_loss
+        self.summary['loss'] = loss
+
         kl = 0.5 * torch.mean(
             torch.square(z_mean.data) + torch.exp(z_logvar.data) - z_logvar.data - 1, [0])
 
         for i in range(kl.shape[0]):
-            summary[f"kl/{i}"] = kl[i]
+            self.summary[f"kl/{i}"] = kl[i]
 
-        return summary
+        return self.summary
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         raise NotImplementedError
@@ -206,6 +208,7 @@ class FactorVAE(BaseVAE):
         super().__init__(input_shape, gamma=gamma, **kwargs)
         self.gamma = gamma
         self.discriminator = architectures.make_discriminator(self.num_latent)
+        self.opt = torch.optim.Adam(self.discriminator.parameters())
 
     def model_fn(self, features, labels):
         """TPUEstimator compatible model function."""
@@ -223,19 +226,22 @@ class FactorVAE(BaseVAE):
             features, reconstructions)
         reconstruction_loss = torch.mean(per_sample_loss)
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
-        standard_vae_loss = torch.add(reconstruction_loss, kl_loss)
+        elbo = torch.add(reconstruction_loss, kl_loss)
         # tc = E[log(p_real)-log(p_fake)] = E[logit_real - logit_fake]
         tc_loss_per_sample = logits_z[:, 0] - logits_z[:, 1]
         tc_loss = torch.mean(tc_loss_per_sample, dim=0)
         regularizer = kl_loss + self.gamma * tc_loss
-        factor_vae_loss = torch.add(
-            standard_vae_loss, self.gamma * tc_loss)
+        factor_vae_loss = reconstruction_loss + regularizer
+
+        self.opt.zero_grad()
         discr_loss = torch.add(
             0.5 * torch.mean(torch.log(probs_z[:, 0])),
             0.5 * torch.mean(torch.log(probs_z_shuffle[:, 1])))
-
+        discr_loss.backward()
+        self.opt.step()
         summary = {'reconstruction_loss': reconstruction_loss,
                    'discr_loss': discr_loss,
+                   'elbo': -elbo,
                    'loss': factor_vae_loss}
 
         kl = 0.5 * torch.mean(

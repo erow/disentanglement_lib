@@ -28,7 +28,7 @@ import gin
 
 
 @gin.configurable("dataset")
-def get_named_ground_truth_data(name):
+def get_named_ground_truth_data(name="auto"):
     """Returns ground truth data set based on name.
 
     Args:

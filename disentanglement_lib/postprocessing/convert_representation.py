@@ -19,8 +19,12 @@ def concat_representation(original_data: GroundTruthData, variables):
 
     def sample_observations_from_factors(self, factors, random_state):
         """Sample a batch of observations X given a batch of factors Y."""
-        all_factors = self.state_space.sample_all_factors(factors, random_state)
-        indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
+        factor_sizes = self.factors_num_values
+        indices = np.zeros(len(factors), dtype=np.int64)
+        num = 1
+        for i in range(self.num_factors):
+            indices = indices + factors[:, -1 - i] * num
+            num *= factor_sizes[-1 - i]
         distribution = SpecialTuple((
             self.mean[indices].astype(np.float32),
             self.std[indices].astype(np.float32)

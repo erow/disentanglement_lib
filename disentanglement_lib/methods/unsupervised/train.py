@@ -81,7 +81,7 @@ def train(model_dir,
     # Obtain the dataset. tf format
     dataset = named_data.get_named_ground_truth_data()
     tf_data_shape = dataset.observation_shape
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=0, shuffle=True)
+    dl = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 

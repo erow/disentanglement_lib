@@ -60,6 +60,9 @@ class AnnealedTCVAE(vae.BaseVAE):
         mi = torch.mean(log_qzCx - log_qz)
         tc = torch.mean(log_qz - log_qz_product)
         dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
         return self.gamma * mi * c + self.beta * tc + dw_kl_loss
 
 
