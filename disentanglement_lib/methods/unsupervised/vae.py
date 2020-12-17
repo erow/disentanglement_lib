@@ -218,6 +218,16 @@ class FactorVAE(BaseVAE):
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         z_shuffle = shuffle_codes(z_sampled)
 
+        logits_z, probs_z = self.discriminator(z_sampled.data)
+        _, probs_z_shuffle = self.discriminator(z_shuffle.data)
+
+        self.opt.zero_grad()
+        discr_loss = -torch.add(
+            0.5 * torch.mean(torch.log(probs_z[:, 0])),
+            0.5 * torch.mean(torch.log(probs_z_shuffle[:, 1])))
+        discr_loss.backward()
+        self.opt.step()
+
         logits_z, probs_z = self.discriminator(z_sampled)
         _, probs_z_shuffle = self.discriminator(z_shuffle)
 
@@ -233,12 +243,6 @@ class FactorVAE(BaseVAE):
         regularizer = kl_loss + self.gamma * tc_loss
         factor_vae_loss = reconstruction_loss + regularizer
 
-        self.opt.zero_grad()
-        discr_loss = torch.add(
-            0.5 * torch.mean(torch.log(probs_z[:, 0])),
-            0.5 * torch.mean(torch.log(probs_z_shuffle[:, 1])))
-        discr_loss.backward()
-        self.opt.step()
         summary = {'reconstruction_loss': reconstruction_loss,
                    'discr_loss': discr_loss,
                    'elbo': -elbo,

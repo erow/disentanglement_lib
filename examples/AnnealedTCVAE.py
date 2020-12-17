@@ -19,6 +19,7 @@ import numpy as np
 from disentanglement_lib.visualize.visualize_model import visualize
 from examples.TC import *
 import wandb
+
 beta = None
 
 base_path = "example_output"
@@ -51,40 +52,85 @@ class AnnealedTCVAE(vae.BaseVAE):
         self.iteration_threshold = iteration_threshold
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        c = 1 - anneal(1, self.global_step, self.iteration_threshold)
-        log_pz, log_qz, log_prod_qzi, log_q_zCx = get_log_pz_qz_prodzi_qzCx(z_sampled,
-                                                                            (z_mean, z_logvar),
-                                                                            32 * 32 * 40 * 6 * 3,
-                                                                            is_mss=True)
+        c = anneal(self.gamma, self.global_step, 100000)
 
-        # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
-        mi_loss = (log_q_zCx - log_qz).mean()
-        # TC[z] = KL[q(z)||\prod_i z_i]
-        tc_loss = (log_qz - log_prod_qzi).mean()
-        # dw_kl_loss is KL[q(z)||p(z)] instead of usual KL[q(z|x)||p(z))]
-        dw_kl_loss = (log_prod_qzi - log_pz).mean()
+        log_qzCx = vae.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = vae.gaussian_log_density(z_sampled,
+                                          torch.zeros_like(z_mean),
+                                          torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
 
-        wandb.log({
-            'mi': mi_loss,
-            'tc': tc_loss,
-            'dw': dw_kl_loss,
-            'c': c
-        })
-        return mi_loss * c * 100 + self.beta * tc_loss + dw_kl_loss
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
+        self.summary['c'] = c
+        return 500 * (-self.gamma + c - mi).abs() + self.beta * tc + dw_kl_loss
+
+
+@gin.configurable("AnnealedTCVAE1")  # This will allow us to reference the model.
+class AnnealedTCVAE1(vae.BaseVAE):
+    """AnnealedTCVAE model."""
+
+    def __init__(self, input_shape,
+                 beta=gin.REQUIRED,
+                 gamma=gin.REQUIRED,
+                 c_max=gin.REQUIRED,
+                 iteration_threshold=gin.REQUIRED, **kwargs):
+        """
+        Args:
+          gamma: Hyperparameter for the regularizer.
+          c_max: Maximum capacity of the bottleneck.
+          iteration_threshold: How many iterations to reach c_max.
+        """
+        super().__init__(input_shape, beta=beta, gamma=gamma,
+                         c_max=c_max,
+                         iteration_threshold=iteration_threshold, **kwargs)
+        self.beta = beta
+        self.gamma = gamma
+        self.N = 3 * 6 * 40 * 32 * 32
+
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        c = self.gamma - self.gamma * anneal(1, self.global_step, 1000)
+
+        log_qzCx = vae.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        zeros = torch.zeros_like(z_mean)
+        log_pz = vae.gaussian_log_density(z_sampled, zeros, zeros).sum(1)
+        _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
+        # 常数矫正，但是常数不影响结果
+        batch_size = z_mean.size(0)
+        log_qz = log_qz - np.log(batch_size * self.N)
+        log_qz_product = log_qz_product - math.log(batch_size * self.N) * z_mean.size(1)
+
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
+        self.summary['c'] = c
+        return mi * c + self.beta * tc + dw_kl_loss
+
 
 gin_bindings = [
     "train.model = @AnnealedTCVAE",
+    "AnnealedTCVAE1.beta=6",
+    "AnnealedTCVAE1.gamma=5",
+    "AnnealedTCVAE1.c_max=50.",
+    "AnnealedTCVAE1.iteration_threshold=1000",
     "AnnealedTCVAE.beta=6",
-    "AnnealedTCVAE.gamma=1000",
+    "AnnealedTCVAE.gamma=5",
     "AnnealedTCVAE.c_max=50.",
-    "AnnealedTCVAE.iteration_threshold=100000"
+    "AnnealedTCVAE.iteration_threshold=1000"
 ]
 
 # The main training protocol of disentanglement_lib is defined in the
 # disentanglement_lib.methods.unsupervised.train module. To configure
 # training we need to provide a gin config. For a standard VAE, you may have a
 # look at model.gin on how to do this.
-
+wandb.init(project='examples', reinit=True)
 
 train.train_with_gin(
     os.path.join(path_vae, "model"), overwrite, ["model.gin"],

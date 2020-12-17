@@ -56,9 +56,9 @@ def run_model(output_directory, config, overwrite=True):
     model_dir = os.path.join(output_directory, "model")
     model_bindings, model_config_file = study.get_model_config(0)
     gin_bindings = [
+        'dataset.name = "dsprites_noshape"',
         f"train.model = @{config.method}",
         f"train.random_seed={config.random_seed}",
-        # "train.training_steps=1000",
         f"{config.method}.beta={config.beta}",
         f"{config.method}.gamma={config.gamma}"
     ]
@@ -153,7 +153,7 @@ class AnnealedTCVAE1(vae.BaseVAE):
         self.summary['tc'] = tc
         self.summary['dw'] = dw_kl_loss
         self.summary['c'] = c
-        return 500 * (mi - c).abs() + self.beta * tc + dw_kl_loss
+        return 500 * (-self.gamma + c - mi).abs() + self.beta * tc + dw_kl_loss
 
 
 @gin.configurable("AnnealedTCVAE2")  # This will allow us to reference the model.
@@ -176,6 +176,7 @@ class AnnealedTCVAE2(vae.BaseVAE):
                          **kwargs)
         self.beta = beta
         self.gamma = gamma
+        self.N = 3 * 6 * 40 * 32 * 32
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         c = 1 - anneal(1, self.global_step, 100000)
@@ -185,6 +186,11 @@ class AnnealedTCVAE2(vae.BaseVAE):
                                           torch.zeros_like(z_mean),
                                           torch.zeros_like(z_mean)).sum(1)
         _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
+
+        # 常数矫正，但是常数不影响结果
+        batch_size = z_mean.size(0)
+        log_qz = log_qz - np.log(batch_size * self.N)
+        log_qz_product = log_qz_product - np.log(batch_size * self.N) * z_mean.size(1)
 
         mi = torch.mean(log_qzCx - log_qz)
         tc = torch.mean(log_qz - log_qz_product)
@@ -197,15 +203,28 @@ class AnnealedTCVAE2(vae.BaseVAE):
 
 
 if __name__ == "__main__":
+    method = "AnnealedTCVAE1"
+    for i, gamma in enumerate([2.5, 5., 10., 25.]):
+        for random_seed in range(3):
+            wandb.init(project='experiments', tags=[experiment], reinit=True,
+                       config={
+                           'beta': 6.,
+                           'gamma': gamma,
+                           'method': method,
+                           'random_seed': random_seed
+                       })
+            output_directory = os.path.join(base_directory, experiment, method, str(gamma), str(random_seed))
+            run_model(output_directory, wandb.config)
+    exit(0)
+    method = "AnnealedTCVAE2"
     for i, gamma in enumerate([5., 10., 25., 50., 75., 100.]):
-        for method in ["AnnealedTCVAE1", "AnnealedTCVAE2"]:
-            for random_seed in range(3):
-                wandb.init(project='experiments', tags=[experiment], reinit=True,
-                           config={
-                               'beta': 6.,
-                               'gamma': gamma,
-                               'method': method,
-                               'random_seed': random_seed
-                           })
-                output_directory = os.path.join(base_directory, experiment, method, str(gamma), str(random_seed))
-                run_model(output_directory, wandb.config)
+        for random_seed in range(3):
+            wandb.init(project='experiments', tags=[experiment], reinit=True,
+                       config={
+                           'beta': 6.,
+                           'gamma': gamma,
+                           'method': method,
+                           'random_seed': random_seed
+                       })
+            output_directory = os.path.join(base_directory, experiment, method, str(gamma), str(random_seed))
+            run_model(output_directory, wandb.config)

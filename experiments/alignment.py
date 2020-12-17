@@ -58,10 +58,8 @@ for stride in [1, 2, 4]:
                            'stride': stride,
                            'h': h
                        })
-            if not os.path.exists(model_dir):
-
-                train.train_with_gin(model_dir, False, ['shared.gin'],
-                                     model_bindings)
+            train.train_with_gin(model_dir, True, ['shared.gin'],
+                                 model_bindings)
 
             representation_dir = os.path.join(output_directory, "representation")
 
