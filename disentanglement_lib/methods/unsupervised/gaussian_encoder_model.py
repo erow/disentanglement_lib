@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from disentanglement_lib.methods.shared import architectures  # pylint: disable=unused-import
 
 import os
 

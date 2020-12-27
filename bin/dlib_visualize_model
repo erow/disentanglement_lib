@@ -24,9 +24,9 @@ from absl import flags
 from disentanglement_lib.visualize import visualize_model
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("model_dir", None,
+flags.DEFINE_string("model_dir", 'model',
                     "Directory to take the trained model from.")
-flags.DEFINE_string("output_dir", None,
+flags.DEFINE_string("output_dir", 'visualization',
                     "Directory to save the visualizations in.")
 flags.DEFINE_boolean("overwrite", False,
                      "Whether to overwrite output directory.")

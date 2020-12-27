@@ -436,5 +436,91 @@ class BetaTCVAE(BaseVAE):
         return tc + kl_loss
 
 
+@gin.configurable("AnnealedTCVAE1")  # This will allow us to reference the model.
+class AnnealedTCVAE1(BaseVAE):
+    """AnnealedTCVAE model."""
+
+    def __init__(self, input_shape,
+                 beta=gin.REQUIRED,
+                 gamma=gin.REQUIRED,
+                 **kwargs):
+        """
+        Args:
+          gamma: Hyperparameter for the regularizer.
+          c_max: Maximum capacity of the bottleneck.
+          iteration_threshold: How many iterations to reach c_max.
+        """
+        super().__init__(input_shape,
+                         beta=beta,
+                         gamma=gamma,
+                         **kwargs)
+        self.beta = beta
+        self.gamma = gamma
+
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        c = anneal(self.gamma, self.global_step, 100000)
+
+        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = gaussian_log_density(z_sampled,
+                                      torch.zeros_like(z_mean),
+                                      torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
+
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
+        self.summary['c'] = c
+        return 500 * (-self.gamma + c - mi).abs() + self.beta * tc + dw_kl_loss
+
+
+@gin.configurable("AnnealedTCVAE2")  # This will allow us to reference the model.
+class AnnealedTCVAE2(BaseVAE):
+    """AnnealedTCVAE model."""
+
+    def __init__(self, input_shape,
+                 beta=gin.REQUIRED,
+                 gamma=gin.REQUIRED,
+                 **kwargs):
+        """
+        Args:
+          gamma: Hyperparameter for the regularizer.
+          c_max: Maximum capacity of the bottleneck.
+          iteration_threshold: How many iterations to reach c_max.
+        """
+        super().__init__(input_shape,
+                         beta=beta,
+                         gamma=gamma,
+                         **kwargs)
+        self.beta = beta
+        self.gamma = gamma
+        self.N = 3 * 6 * 40 * 32 * 32
+
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        c = 1 - anneal(1, self.global_step, 100000)
+
+        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = gaussian_log_density(z_sampled,
+                                      torch.zeros_like(z_mean),
+                                      torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
+
+        # 常数矫正，但是常数不影响结果
+        batch_size = z_mean.size(0)
+        log_qz = log_qz - np.log(batch_size * self.N)
+        log_qz_product = log_qz_product - np.log(batch_size * self.N) * z_mean.size(1)
+
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
+        self.summary['c'] = c
+        return self.gamma * mi * c + self.beta * tc + dw_kl_loss
+
+
 def load_model(model_dir, filename='ckp.pth'):
     return load(GaussianModel, model_dir, filename)

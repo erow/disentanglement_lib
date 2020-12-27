@@ -73,8 +73,8 @@ def train(model_dir,
         if overwrite:
             shutil.rmtree(model_path)
         else:
-            raise ValueError("Directory already exists and overwrite is False.")
-    model_path.mkdir(parents=True)
+            print("Directory already exists and overwrite is False.")
+    model_path.mkdir(parents=True, exist_ok=True)
     # Create a numpy random state. We will sample the random seeds for training
     # and evaluation from this.
 

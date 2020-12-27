@@ -215,7 +215,7 @@ if __name__ == "__main__":
                        })
             output_directory = os.path.join(base_directory, experiment, method, str(gamma), str(random_seed))
             run_model(output_directory, wandb.config)
-    exit(0)
+
     method = "AnnealedTCVAE2"
     for i, gamma in enumerate([5., 10., 25., 50., 75., 100.]):
         for random_seed in range(3):

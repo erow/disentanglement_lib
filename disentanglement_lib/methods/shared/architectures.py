@@ -103,18 +103,17 @@ class conv_encoder(nn.Module):
         variable log variances.
     """
 
-    def __init__(self, input_shape, num_latent):
+    def __init__(self, input_shape, num_latent, base_channel=32):
         super().__init__()
         self.num_latent = num_latent
         self.input_shape = input_shape
-
         self.net = nn.Sequential(
-            nn.Conv2d(1, 32, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
-            nn.Conv2d(32, 32, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
-            nn.Conv2d(32, 64, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
-            nn.Conv2d(64, 64, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
+            nn.Conv2d(1, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
+            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
+            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
+            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
             nn.Flatten(),
-            nn.Linear(4 * 4 * 64, 256), nn.ReLU(),
+            nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
             nn.Linear(256, num_latent * 2)
         )
 
@@ -289,3 +288,31 @@ class test_decoder(nn.Module):
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
         return torch.reshape(x, shape=[-1] + self.output_shape)
+
+
+@gin.configurable("fractional_conv_encoder", allowlist=[])
+class fractional_conv_encoder(nn.Module):
+    def __init__(self, input_shape, num_latent,
+                 base_channel=8,
+                 groups=4,
+                 active=0):
+        super().__init__()
+        assert num_latent % groups == 0
+        self.num_latent = num_latent
+        self.input_shape = input_shape
+        convs = [conv_encoder(input_shape, num_latent // groups, base_channel) for i in range(groups)]
+        self.convs = nn.Sequential(*convs)
+        for i in range(groups):
+            if i == active:
+                self.convs[i].requires_grad_(True)
+            else:
+                self.convs[i].requires_grad_(False)
+
+    def forward(self, input_tensor):
+        mean_list, log_var_list = [], []
+        for conv in self.convs:
+            means, log_var = conv(input_tensor)
+            mean_list.append(means)
+            log_var_list.append(log_var)
+
+        return torch.cat(mean_list, 1), torch.cat(log_var_list, 1)
