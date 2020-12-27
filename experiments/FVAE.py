@@ -79,7 +79,7 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
     train.train_with_gin(model_dir, False, [model_config_file],
                          gin_bindings)
-    return
+    # return
     # We fix the random seed for the postprocessing and evaluation steps (each
     # config gets a different but reproducible seed derived from a master seed of
     # 0). The model seed was set via the gin bindings and configs of the study.
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     epochs = [1, 2, 4, 40]
     for random_seed in range(3):
         for phase, beta in enumerate([100, 40, 20, 4]):
-            steps = epochs[phase] * 1  # 11520
+            steps = epochs[phase] * 11520
             for method in ["vae", "AnnealedTCVAE2"]:
                 output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
 
@@ -138,12 +138,12 @@ if __name__ == "__main__":
                     continue
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
                            config={
-                               'beta': 6.,
+                               'beta': beta,
                                'phase': phase,
                                'method': method,
                                'random_seed': random_seed
                            })
-
+                model = vae.BetaVAE if method == 'vae' else vae.AnnealedTCVAE2
                 gin_bindings = [
                     'dataset.name = "dsprites_noshape"',
                     f"train.model = @{method}",
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                     f"train.training_steps={steps}"
                 ]
 
-                run_model(output_directory, gin_bindings, vae.AnnealedTCVAE2)
+                run_model(output_directory, gin_bindings, model)
                 wandb.save(os.path.join(output_directory, "model/results/json/*.json"))
                 wandb.save(os.path.join(output_directory, "visualization/animated_traversals/fixed_interval_cycle*"))
                 wandb.join()
