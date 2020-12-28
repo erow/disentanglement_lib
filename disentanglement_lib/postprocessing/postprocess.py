@@ -108,7 +108,7 @@ def postprocess(model_dir,
 
     # Path to TFHub module of previously trained model.
 
-    model = load(GaussianModel, model_dir)
+    model = load(GaussianModel, model_dir).cuda()
 
     # Run the postprocessing function which returns a transformation function
     # that can be used to create the representation from the mean and log
@@ -118,7 +118,9 @@ def postprocess(model_dir,
     mean, std, factors = [], [], []
     with torch.no_grad():
         for imgs, labels in dl:
+            imgs = imgs.cuda()
             mu, logvar = model.encode(imgs)
+            mu, logvar = mu.cpu(), logvar.cpu()
             mean.append(mu.numpy())
             std.append((logvar / 2).exp().numpy())
             factors.append(labels.numpy())
@@ -133,6 +135,7 @@ def postprocess(model_dir,
     original_results_dir = os.path.join(model_dir, "results")
     results_dir = os.path.join(output_dir, "results")
     results_dict = dict(elapsed_time=time.time() - experiment_timer)
+    print(original_results_dir, results_dir)
     results.update_result_directory(results_dir, "postprocess", results_dict,
                                     original_results_dir)
     return representation

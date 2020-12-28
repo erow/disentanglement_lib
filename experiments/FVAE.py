@@ -100,7 +100,7 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
     # Iterate through the disentanglement metrics.
     eval_configs = sorted(study.get_eval_config_files())
-    eval_configs = eval_configs[1:]  # TODO remove DCI for taking too much time.
+    eval_configs = eval_configs[:]  # TODO remove DCI for taking too much time.
 
     for post_name in ['mean', 'sample']:
         post_dir = os.path.join(output_directory, "postprocessed",
@@ -122,7 +122,7 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
     # Visualization
 
-    visualize_model.visualize(model_dir, os.path.join(output_directory, 'visualization'))
+    visualize_model.visualize(model_dir, os.path.join(output_directory, 'visualization'), overwrite)
 
 
 if __name__ == "__main__":
@@ -131,10 +131,11 @@ if __name__ == "__main__":
     for random_seed in range(3):
         for phase, beta in enumerate([100, 40, 20, 4]):
             steps = epochs[phase] * 11520
-            for method in ["vae", "AnnealedTCVAE2"]:
+            for method in ["vae"]:
                 output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
-
-                if os.path.exists(os.path.join(output_directory, 'model', f"{phase}.pth")):
+                model_file = os.path.join(output_directory, 'model', f"{phase}.pth")
+                if os.path.exists(model_file):
+                    print("skip", random_seed, phase, method)
                     continue
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
                            config={
