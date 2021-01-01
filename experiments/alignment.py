@@ -19,83 +19,55 @@ import numpy as np
 import wandb
 
 experiment = __file__.split('/')[-1][:-3]
-base_directory = 'experiment_results'
+base_directory = f'experiment_results/{experiment}'
 
-for stride in [1, 2, 4]:
-    for h in [2, 4, 8]:  # 2, 4
-        for method in ['factor_vae']:  # 'annealed_vae', 'factor_vae'
+for random_seed in range(3):
+    for stride in [1, 2, 4]:
+        for h in [2, 4, 8]:  # 2, 4
+            for method in ['beta_tc_vae', 'vae']:
+                output_directory = os.path.join(base_directory, method, str(h), str(stride))
+                output_directory = pathlib.Path(output_directory)
+                output_directory.mkdir(parents=True, exist_ok=True)
 
-            output_directory = os.path.join(base_directory, method, str(h), str(stride))
-            output_directory = pathlib.Path(output_directory)
-            output_directory.mkdir(parents=True, exist_ok=True)
+                ds_bindings = [
+                    "dataset.name='translation'",
+                    f"translation.img_size=({h},4,1)",
+                    f"translation.stride={stride}",
+                    "train.training_steps = 5000"
+                ]
 
-            ds_bindings = [
-                "dataset.name='translation'",
-                f"translation.img_size=({h},4,1)",
-                f"translation.stride={stride}"
-            ]
+                train_bindings = [
+                    "train.model = @{}".format(method),
+                    f"train.random_seed={random_seed}"
+                ]
 
-            train_bindings = [
-                "train.model = @{}".format(method)
-            ]
+                model_dir = os.path.join(output_directory, "model")
+                model_bindings = train_bindings + ds_bindings
 
-            model_bingdings = [
-                "factor_vae.gamma=30.",
-                "discriminator.discriminator_fn=@fc_discriminator",
-                "vae.beta=1",
-                "annealed_vae.iteration_threshold=5000",
-                "annealed_vae.c_max=5.",
-                "annealed_vae.gamma=1000"
-            ]
+                wandb.init(project='experiments', tags=[experiment], reinit=True,
+                           config={
+                               'method': method,
+                               'stride': stride,
+                               'h': h
+                           })
+                train.train_with_gin(model_dir, True, ['shared.gin'],
+                                     model_bindings)
 
-            model_dir = os.path.join(output_directory, "model")
-            model_bindings = model_bingdings + \
-                             train_bindings + ds_bindings
+                representation_dir = os.path.join(output_directory, "representation")
 
-            wandb.init(project='experiments', tags=[experiment], reinit=True,
-                       config={
-                           'method': method,
-                           'stride': stride,
-                           'h': h
-                       })
-            train.train_with_gin(model_dir, True, ['shared.gin'],
-                                 model_bindings)
-
-            representation_dir = os.path.join(output_directory, "representation")
-
-            if not os.path.exists(representation_dir):
-                postprocess.postprocess_with_gin(model_dir, representation_dir, False,
+                postprocess.postprocess_with_gin(model_dir, representation_dir, True,
                                                  gin_bindings=["dataset.name='translation'",
                                                                "discriminator.discriminator_fn=@fc_discriminator",
                                                                "postprocess.random_seed=0"])
 
-            representation = np.load(os.path.join(representation_dir, 'representation.npy'), allow_pickle=True)
-            representation = representation[()]
-            z = torch.Tensor(representation['mean'])
-            fig = visualize_model.plot_latent_vs_ground(z, latnt_sizes=[16, 16])
-            wandb.log({'projection': wandb.Image(fig)})
-            fig.savefig(os.path.join(output_directory, 'projection.png'))
+                representation = np.load(os.path.join(representation_dir, 'representation.npy'), allow_pickle=True)
+                representation = representation[()]
+                z = torch.Tensor(representation['mean'])
+                fig = visualize_model.plot_latent_vs_ground(z, latnt_sizes=[16, 16])
+                wandb.log({'projection': wandb.Image(fig)})
+                fig.savefig(os.path.join(output_directory, 'projection.png'))
 
-            # evaluate
-            eval_configs = sorted(UnsupervisedStudyV1().get_eval_config_files())
-            eval_configs = eval_configs[1:]  # TODO remove DCI for taking too much time.
+                # visualize projection
 
-            for post_name in ['mean', 'sample']:
-                post_dir = os.path.join(output_directory, "representation")
-                # Now, we compute all the specified scores.
-                for gin_eval_config in eval_configs:
-                    metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
-                    logging.info("Computing metric '%s' on '%s'...", metric_name, post_name)
-                    metric_dir = os.path.join(output_directory, "metrics", post_name,
-                                              metric_name)
-                    eval_bindings = [
-                        "evaluation.random_seed = {}".format(0),
-                        "evaluation.name = '{}'".format(metric_name),
-                        f"evaluation.representation_fn =@{post_name}_representation"
-
-                    ]
-                    evaluate.evaluate_with_gin(post_dir, metric_dir, True,
-                                               [gin_eval_config], eval_bindings)
-
-            # visualize_model.visualize(model_dir, os.path.join(output_directory, 'visualization')
-            #                           , True, num_points_irs=10000)
+                fig = visualize_model.plot_projection_2d(z, [16, 16], 10)
+                wandb.log({'projection_d': wandb.Image(fig)})

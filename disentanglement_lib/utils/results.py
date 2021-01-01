@@ -21,6 +21,7 @@ import copy
 import os
 import pathlib
 import re
+import shutil
 import uuid
 from distutils import dir_util
 import numpy as np
@@ -53,7 +54,7 @@ def update_result_directory(result_directory,
 
     # Copy the old output directory to the new one if required.
     if old_result_directory is not None:
-        copydir(old_result_directory, result_directory)
+        shutil.copytree(old_result_directory, result_directory)
     else:
         # Creates the output directory if necessary.
         if not os.path.isdir(result_directory):

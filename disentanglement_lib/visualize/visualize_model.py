@@ -41,6 +41,7 @@ bmap = brewer2mpl.get_map('Set1', 'qualitative', 3)
 colors = bmap.mpl_colors
 VAR_THRESHOLD = 5e-2
 
+
 def visualize(model_dir,
               output_dir,
               overwrite=False,
@@ -214,7 +215,6 @@ def visualize(model_dir,
         latents, _ = _encoder(obs)
         vis_all_interventional_effects(factors, latents, os.path.join(output_dir, "interventional_effects"))
 
-
     # Finally, we clear the gin config that we have set.
     gin.clear_config()
 
@@ -358,4 +358,24 @@ def plot_latent_vs_ground(z,
     fig.text(0.5, 0.03, 'Ground Truth', ha='center')
     fig.text(0.01, 0.5, 'Learned Latent Variables ', va='center', rotation='vertical')
 
+    return fig
+
+
+def plot_projection_2d(z, latnt_sizes, sample_nums=5):
+    K = z.shape[-1]
+    num_factor = len(latnt_sizes)
+    assert num_factor == 2
+    qz_means = z.reshape(*(latnt_sizes + [K])).cpu().data
+    var = torch.std(qz_means.reshape(-1, K), dim=0).pow(2)
+
+    _, z_inds = var.topk(2)
+    fig = plt.figure()
+    for pos in np.random.randint([0, 0], latnt_sizes, [sample_nums, 2]):
+        line1 = qz_means[pos[0], :, z_inds]
+        plt.plot(line1[:, 0], line1[:, 1], 'r')
+
+        line2 = qz_means[:, pos[1], z_inds]
+        plt.plot(line2[:, 0], line2[:, 1], 'g')
+        point = qz_means[pos[0], pos[1], z_inds]
+        plt.scatter(point[0], point[1])
     return fig

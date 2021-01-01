@@ -26,17 +26,15 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import shutil
 from shutil import copyfile
 
 import gin.torch
 import torch
 import wandb
-from absl import app
-from absl import flags
 from absl import logging
 
 from disentanglement_lib.methods.unsupervised.vae import anneal, load_model
-from examples.TC import get_log_pz_qz_prodzi_qzCx
 
 from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
@@ -67,18 +65,16 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
     def init_model(input_shape):
         global phase
-        print("load ", phase)
         if phase == 0:
             return train_model(input_shape)
         else:
+            print("load ", phase)
             return load_model(model_dir, f"{phase - 1}.pth")
 
     train.train(model_dir, False, init_model)
     copyfile(os.path.join(model_dir, "ckp.pth"), os.path.join(model_dir, f"{phase}.pth"))
     gin.clear_config()
 
-    train.train_with_gin(model_dir, False, [model_config_file],
-                         gin_bindings)
     # return
     # We fix the random seed for the postprocessing and evaluation steps (each
     # config gets a different but reproducible seed derived from a master seed of
@@ -100,7 +96,7 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
     # Iterate through the disentanglement metrics.
     eval_configs = sorted(study.get_eval_config_files())
-    eval_configs = eval_configs[:]  # TODO remove DCI for taking too much time.
+    eval_configs = eval_configs[1:]  # TODO remove DCI for taking too much time.
 
     for post_name in ['mean', 'sample']:
         post_dir = os.path.join(output_directory, "postprocessed",
@@ -128,15 +124,17 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 if __name__ == "__main__":
 
     epochs = [1, 2, 4, 40]
-    for random_seed in range(3):
-        for phase, beta in enumerate([100, 40, 20, 4]):
+    for random_seed in range(1):
+        phase = 0
+        for trail, beta in enumerate([150, 200]):
             steps = epochs[phase] * 11520
-            for method in ["vae"]:
-                output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
+            for method in ["AnnealedTCVAE", "vae"]:
+                output_directory = os.path.join(base_directory, experiment, method, str(random_seed), str(trail))
                 model_file = os.path.join(output_directory, 'model', f"{phase}.pth")
                 if os.path.exists(model_file):
-                    print("skip", random_seed, phase, method)
-                    continue
+                    # print("skip", random_seed, phase, method)
+                    # continue
+                    shutil.rmtree(output_directory)
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
                            config={
                                'beta': beta,
@@ -144,14 +142,14 @@ if __name__ == "__main__":
                                'method': method,
                                'random_seed': random_seed
                            })
-                model = vae.BetaVAE if method == 'vae' else vae.AnnealedTCVAE2
+                model = vae.BetaVAE if method == 'vae' else vae.AnnealedTCVAE
                 gin_bindings = [
                     'dataset.name = "dsprites_noshape"',
                     f"train.model = @{method}",
                     f"train.random_seed={random_seed}",
-                    f"AnnealedTCVAE2.beta=6.",
                     f"vae.beta={beta}",
-                    f"AnnealedTCVAE2.gamma={beta}",
+                    f"AnnealedTCVAE.beta=6.",
+                    f"AnnealedTCVAE.gamma={beta}",
                     f"fractional_conv_encoder.active={phase}",
                     "model.encoder_fn = @fractional_conv_encoder",
                     "model.num_latent = 12",

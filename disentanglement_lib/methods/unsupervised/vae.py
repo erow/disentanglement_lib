@@ -436,6 +436,43 @@ class BetaTCVAE(BaseVAE):
         return tc + kl_loss
 
 
+@gin.configurable("AnnealedTCVAE")  # This will allow us to reference the model.
+class AnnealedTCVAE(BaseVAE):
+    """AnnealedTCVAE model."""
+
+    def __init__(self, input_shape,
+                 beta=gin.REQUIRED,
+                 gamma=gin.REQUIRED,
+                 **kwargs):
+        """
+        Args:
+          gamma: Hyperparameter for the regularizer.
+          c_max: Maximum capacity of the bottleneck.
+          iteration_threshold: How many iterations to reach c_max.
+        """
+        super().__init__(input_shape,
+                         beta=beta,
+                         gamma=gamma,
+                         **kwargs)
+        self.beta = beta
+        self.gamma = gamma
+
+    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = gaussian_log_density(z_sampled,
+                                      torch.zeros_like(z_mean),
+                                      torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
+
+        mi = torch.mean(log_qzCx - log_qz)
+        tc = torch.mean(log_qz - log_qz_product)
+        dw_kl_loss = torch.mean(log_qz_product - log_pz)
+        self.summary['mi'] = mi
+        self.summary['tc'] = tc
+        self.summary['dw'] = dw_kl_loss
+        return self.gamma * mi + self.beta * tc + dw_kl_loss
+
+
 @gin.configurable("AnnealedTCVAE1")  # This will allow us to reference the model.
 class AnnealedTCVAE1(BaseVAE):
     """AnnealedTCVAE model."""
