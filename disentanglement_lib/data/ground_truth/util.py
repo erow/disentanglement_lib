@@ -65,8 +65,8 @@ class SplitDiscreteStateSpace(object):
             shape=(num_samples, self.num_factors), dtype=np.int64)
         all_factors[:, self.latent_factor_indices] = latent_factors
         # Complete all the other factors
-        for i in self.observation_factor_indices:
-            all_factors[:, i] = self._sample_factor(i, num_samples, random_state)
+        # for i in self.observation_factor_indices:
+        #     all_factors[:, i] = self._sample_factor(i, num_samples, random_state)
         return all_factors
 
     def _sample_factor(self, i, num, random_state):

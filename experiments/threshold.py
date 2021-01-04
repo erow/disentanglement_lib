@@ -1,3 +1,10 @@
+"""
+实验目的：发现action、β、KL 之间的关系。
+预期：
+1. KL与β成反比，且存在一threshold使得，当β>threshold时，KL<0.1。
+2. KL与action的entropy成正比。
+3. KL与action的entropy有关而与action无关。（设计不同的动作但是entropy相同）
+"""
 import os
 import time
 from disentanglement_lib.data.ground_truth import dsprites
@@ -40,14 +47,11 @@ def train1(model_dir, model, action,
     # Obtain the dataset. tf format
     dataset = dsprites.DSprites([action])
     tf_data_shape = dataset.observation_shape
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
+    dl = DataLoader(dataset, batch_size=batch_size, num_workers=0, shuffle=False)
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 
-    # We create a TPUEstimator based on the provided model. This is primarily so
-    # that we could switch to TPU training in the future. For now, we train
-    # locally on GPUs.
-    save_checkpoints_steps = training_steps // 10
+
     input_shape = [tf_data_shape[2], tf_data_shape[0], tf_data_shape[1]]
     autoencoder = model(input_shape)
 
@@ -90,10 +94,33 @@ def train1(model_dir, model, action,
 
 
 if __name__ == "__main__":
+    for random_seed in range(3, 6):
+        for trail, beta in enumerate(np.linspace(1, 23, 10)):
+            steps = int(3e4)
+            output_directory = os.path.join(base_directory, experiment, str(random_seed), str(beta))
+            wandb.init(project='experiments', tags=[experiment], reinit=True,
+                       config={
+                           'dataset': 'translation',
+                           'beta': beta,
+                           'random_seed': random_seed
+                       })
+
+            gin_bindings = [
+                'dataset.name = "translation"',
+                f"translation.img_size=(2,8,1)",
+                f"translation.stride=1",
+                "train.model=@vae",
+                f"vae.beta={beta}",
+                f"train.training_steps = {steps}"
+            ]
+            train.train_with_gin(os.path.join(output_directory, 'model'), True,
+                                 ['shared.gin'],
+                                 gin_bindings=gin_bindings)
+    exit()
     for random_seed in range(3):
         for trail, beta in enumerate(np.linspace(1, 300, 10)):
-            for action in range(5):
-                steps = 5 * 11520
+            for action in range(1, 5):
+                steps = int(3e4)
                 output_directory = os.path.join(base_directory, experiment, str(random_seed), str(beta), str(action))
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
                            config={

@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import numpy as np
+from torch.utils.data import Dataset
 
 
 class GroundTruthData(object):
@@ -71,3 +72,16 @@ class GroundTruthData(object):
         factors = self.latent_factor(item)
         observations = self.sample_observations_from_factors(factors, np.random.RandomState(0))
         return observations.transpose((0, 3, 1, 2))[0], factors[0]
+
+
+class TorchData(Dataset):
+    def __init__(self, data: GroundTruthData):
+        self.data = data
+        self.labels, observations = data.sample(np.prod(data.factors_num_values), np.random.RandomState(0))
+        self.imgs = observations.transpose((0, 3, 1, 2))
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, item):
+        return self.imgs[item], self.labels[item]

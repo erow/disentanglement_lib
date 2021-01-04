@@ -338,14 +338,16 @@ def plot_latent_vs_ground(z,
     num_active = len(z_inds)
     if num_active == 0:
         return plt.figure()
-    fig, axes = plt.subplots(num_active, num_factor, figsize=(num_factor, num_active + 1))  # default is (8,6)
+    fig, axes = plt.subplots(num_active, num_factor,
+                             figsize=(num_factor * 3, (num_active + 1) * 3),
+                             squeeze=False)  # default is (8,6)
 
     for j in range(num_factor):
         mean_latent = qz_means.mean(dim=[dim for dim in range(num_factor) if dim != j])
         for ax, i in zip(axes[:, j], z_inds):
             ax.plot(mean_latent[:, i].numpy(), )
-            ax.set_xticks([])
-            ax.set_yticks([])
+            # ax.set_xticks([])
+            # ax.set_yticks([])
             x0, x1 = ax.get_xlim()
             y0, y1 = ax.get_ylim()
             ax.set_aspect(abs(x1 - x0) / abs(y1 - y0))
@@ -353,7 +355,7 @@ def plot_latent_vs_ground(z,
                 ax.set_xlabel(f'factor_{j}')
             if j == 0:
                 ax.set_ylabel(f'z_{i}')
-                ax.yaxis.tick_right()
+                # ax.yaxis.tick_right()
 
     fig.text(0.5, 0.03, 'Ground Truth', ha='center')
     fig.text(0.01, 0.5, 'Learned Latent Variables ', va='center', rotation='vertical')

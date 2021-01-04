@@ -2,8 +2,7 @@
 train.batch_size = 64
 train.training_steps = 20000
 train.random_seed=0
-train.opt_name = @AdamOpt
-AdamOpt.args = {'lr':0.0001}
+train.lr = 0.0001
 
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
@@ -12,6 +11,9 @@ reconstruction_loss.loss_fn = @bernoulli_loss
 
 beta_tc_vae.beta=6.
 vae.beta=6.
+AnnealedTCVAE.gamma=6.
+AnnealedTCVAE.beta=10.
 annealed_vae.iteration_threshold=20000
 annealed_vae.c_max = 3.
 annealed_vae.gamma = 100
+

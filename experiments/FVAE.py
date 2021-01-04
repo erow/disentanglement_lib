@@ -66,16 +66,17 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
     def init_model(input_shape):
         global phase
         if phase == 0:
-            return train_model(input_shape)
+            model = train_model(input_shape)
         else:
             print("load ", phase)
-            return load_model(model_dir, f"{phase - 1}.pth")
+            model = load_model(model_dir, f"{phase - 1}.pth")
+        wandb.watch(model)
+        return model
 
     train.train(model_dir, False, init_model)
     copyfile(os.path.join(model_dir, "ckp.pth"), os.path.join(model_dir, f"{phase}.pth"))
     gin.clear_config()
 
-    # return
     # We fix the random seed for the postprocessing and evaluation steps (each
     # config gets a different but reproducible seed derived from a master seed of
     # 0). The model seed was set via the gin bindings and configs of the study.
@@ -94,6 +95,7 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
         postprocess.postprocess_with_gin(model_dir, post_dir, overwrite,
                                          [config], postprocess_bindings)
 
+    # return
     # Iterate through the disentanglement metrics.
     eval_configs = sorted(study.get_eval_config_files())
     eval_configs = eval_configs[1:]  # TODO remove DCI for taking too much time.
@@ -122,19 +124,18 @@ def run_model(output_directory, gin_bindings, train_model, overwrite=True):
 
 
 if __name__ == "__main__":
-
     epochs = [1, 2, 4, 40]
     for random_seed in range(1):
-        phase = 0
-        for trail, beta in enumerate([150, 200]):
-            steps = epochs[phase] * 11520
-            for method in ["AnnealedTCVAE", "vae"]:
-                output_directory = os.path.join(base_directory, experiment, method, str(random_seed), str(trail))
+        for method in ["vae", "AnnealedTCVAE", ]:
+            for phase, beta in enumerate([167, 90, 60, 6]):
+                steps = epochs[phase] * 11520
+                output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
                 model_file = os.path.join(output_directory, 'model', f"{phase}.pth")
                 if os.path.exists(model_file):
                     # print("skip", random_seed, phase, method)
                     # continue
                     shutil.rmtree(output_directory)
+                    # pass
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
                            config={
                                'beta': beta,
@@ -157,6 +158,15 @@ if __name__ == "__main__":
                 ]
 
                 run_model(output_directory, gin_bindings, model)
+
                 wandb.save(os.path.join(output_directory, "model/results/json/*.json"))
                 wandb.save(os.path.join(output_directory, "visualization/animated_traversals/fixed_interval_cycle*"))
+
+                representation = np.load(
+                    os.path.join(output_directory, 'postprocessed', 'representation', 'representation.npy'),
+                    allow_pickle=True)
+                representation = representation[()]
+                z = torch.Tensor(representation['mean'])
+                fig = visualize_model.plot_latent_vs_ground(z, latnt_sizes=[6, 40, 32, 32])
+                wandb.log({'projection': wandb.Image(fig)})
                 wandb.join()

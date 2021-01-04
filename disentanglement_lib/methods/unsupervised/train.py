@@ -19,15 +19,17 @@ from __future__ import division
 from __future__ import print_function
 import os
 import time
+
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
+from disentanglement_lib.data.ground_truth.ground_truth_data import TorchData
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import vae  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
 from disentanglement_lib.utils import results
 from .optimizer import *
 import numpy as np
-import torch
+# import torch
 from torch.utils.data import Dataset, DataLoader
 import gin.torch
 import pathlib, shutil
@@ -41,8 +43,8 @@ def train(model_dir,
           training_steps=gin.REQUIRED,
           random_seed=gin.REQUIRED,
           batch_size=gin.REQUIRED,
-          opt_name=gin.REQUIRED,
-          eval_steps=1000,
+          opt_name=torch.optim.Adam,
+          lr=1e-4,
           name="",
           model_num=None):
     """Trains the estimator and exports the snapshot and the gin config.
@@ -81,7 +83,12 @@ def train(model_dir,
     # Obtain the dataset. tf format
     dataset = named_data.get_named_ground_truth_data()
     tf_data_shape = dataset.observation_shape
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=2, shuffle=True)
+    torch_ds = TorchData(dataset)
+    dl = DataLoader(torch_ds,
+                    batch_size=batch_size,
+                    num_workers=0,
+                    shuffle=True,
+                    pin_memory=True)
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 
@@ -95,7 +102,17 @@ def train(model_dir,
     device = 'cuda'
 
     autoencoder.to(device).train()
-    opt = opt_name(autoencoder.parameters())
+    from disentanglement_lib.methods.shared.architectures import fractional_conv_encoder
+    if isinstance(autoencoder.encode, fractional_conv_encoder):
+        opt = opt_name(autoencoder.decode.parameters(), lr)
+        for conv in autoencoder.encode.convs:
+            if conv.activate:
+                opt.add_param_group({'params': conv.parameters(), 'lr': lr})
+            else:
+                opt.add_param_group({'params': conv.parameters(), 'lr': lr * 0})
+    else:
+        opt = opt_name(autoencoder.parameters(), lr)
+
     global_step = 0
 
     summary = {}
@@ -118,6 +135,7 @@ def train(model_dir,
                 break
 
     # Save model as a TFHub module.
+    autoencoder.eval()
     autoencoder.save(model_dir)
     wandb.save(f'{model_dir}/ckp.pth')
 
@@ -128,6 +146,7 @@ def train(model_dir,
     results_dict = summary
     results_dict["elapsed_time"] = time.time() - experiment_timer
     results.update_result_directory(results_dir, "train", results_dict)
+
 
 def train_with_gin(model_dir,
                    overwrite=False,

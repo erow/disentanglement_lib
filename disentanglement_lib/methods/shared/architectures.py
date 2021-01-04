@@ -173,12 +173,12 @@ class deconv_decoder(nn.Module):
         self.num_latent = num_latent
         self.output_shape = output_shape
         self.net = nn.Sequential(
-            nn.Linear(num_latent, 256), nn.ReLU(),
-            nn.Linear(256, 1024), nn.ReLU(),
+            nn.Linear(num_latent, 256), nn.LeakyReLU(),
+            nn.Linear(256, 1024), nn.LeakyReLU(),
             View([-1, 64, 4, 4]),
-            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(),  # 8
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),  # 16
-            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.ReLU(),  # 32
+            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
+            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
 
@@ -303,10 +303,13 @@ class fractional_conv_encoder(nn.Module):
         convs = [conv_encoder(input_shape, num_latent // groups, base_channel) for i in range(groups)]
         self.convs = nn.Sequential(*convs)
         for i in range(groups):
-            if i == active:
-                self.convs[i].requires_grad_(True)
-            else:
+            self.convs[i].activate = i == active
+            if i > active:
                 self.convs[i].requires_grad_(False)
+            # if i == active:
+            #     self.convs[i].requires_grad_(True)
+            # else:
+            #     self.convs[i].requires_grad_(False)
 
     def forward(self, input_tensor):
         mean_list, log_var_list = [], []
