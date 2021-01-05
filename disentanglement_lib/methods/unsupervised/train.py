@@ -27,6 +27,7 @@ from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import vae  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
 from disentanglement_lib.utils import results
+from disentanglement_lib.visualize import visualize_model
 from .optimizer import *
 import numpy as np
 # import torch
@@ -89,6 +90,11 @@ def train(model_dir,
                     num_workers=0,
                     shuffle=True,
                     pin_memory=True)
+
+    test_dl = DataLoader(dataset,
+                         batch_size=batch_size,
+                         num_workers=0,
+                         pin_memory=True)
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 
@@ -122,6 +128,20 @@ def train(model_dir,
             autoencoder.global_step = global_step
             summary = autoencoder.model_fn(imgs, labels)
             loss = summary['loss']
+
+            if (global_step + 1) % save_checkpoints_steps == 0:
+                autoencoder.save(model_dir, f'ckp-{global_step:06d}.pth')
+                mean, std, factors = [], [], []
+                with torch.no_grad():
+                    for imgs, labels in test_dl:
+                        imgs = imgs.cuda()
+                        mu, logvar = autoencoder.encode(imgs)
+                        mean.append(mu)
+                        factors.append(labels)
+                mean = torch.cat(mean, 0).cpu()
+                fig = visualize_model.plot_latent_vs_ground(mean, latnt_sizes=[16, 16])
+                summary['projection'] = wandb.Image(fig)
+
             wandb.log(summary)
 
             opt.zero_grad()
@@ -129,8 +149,7 @@ def train(model_dir,
             opt.step()
             global_step = global_step + 1
 
-            # if (global_step + 1) % save_checkpoints_steps == 0:
-            #     torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
+
             if global_step >= training_steps:
                 break
 
@@ -142,6 +161,7 @@ def train(model_dir,
     # Save the results. The result dir will contain all the results and config
     # files that we copied along, as we progress in the pipeline. The idea is that
     # these files will be available for analysis at the end.
+    summary.pop('projection')
     results_dir = os.path.join(model_dir, "results")
     results_dict = summary
     results_dict["elapsed_time"] = time.time() - experiment_timer

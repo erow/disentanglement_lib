@@ -63,44 +63,46 @@ if __name__ == "__main__":
 
     method = "annealed_vae"
     phase = 0
-    for random_seed in range(3):
-        for c in [2, 3, 4, 5]:
-            steps = 30000
-            output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
-            wandb.init(project='experiments', tags=[experiment], reinit=True,
-                       config={
-                           'c': c,
-                           'method': method,
-                           'random_seed': random_seed
-                       })
-            model = vae.AnnealedVAE
-            gin_bindings = [
-                'dataset.name = "translation"',
-                f"translation.img_size=(2,8,1)",
-                f"translation.stride=1",
-                f"train.model = @{method}",
-                f"train.lr = 0.001",
-                f"train.random_seed=0",
-                f"train.training_steps={steps}",
-                "model.num_latent = 6",
-                "annealed_vae.iteration_threshold=30000",
-                f"annealed_vae.c_max = {c}",
-                "annealed_vae.gamma = 100"
-            ]
+    for random_seed in range(0):
+        for c in [3, 4, 5, 6]:
+            for gamma in [20, 40]:
+                steps = 50000
+                output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
+                wandb.init(project='experiments', tags=[experiment], reinit=True,
+                           config={
+                               'c': c,
+                               'gamma': gamma,
+                               'method': method,
+                               'random_seed': random_seed
+                           })
+                model = vae.AnnealedVAE
+                gin_bindings = [
+                    'dataset.name = "translation"',
+                    f"translation.img_size=(2,8,1)",
+                    f"translation.stride=1",
+                    f"train.model = @{method}",
+                    f"train.lr = 0.001",
+                    f"train.random_seed=0",
+                    f"train.training_steps={steps + 10000}",
+                    "model.num_latent = 6",
+                    f"annealed_vae.iteration_threshold={steps}",
+                    f"annealed_vae.c_max = {c}",
+                    f"annealed_vae.gamma = {gamma}"
+                ]
 
-            run_model(output_directory, gin_bindings, model)
+                run_model(output_directory, gin_bindings, model)
 
-            representation = np.load(os.path.join(output_directory, 'representation', 'representation.npy'),
-                                     allow_pickle=True)
-            representation = representation[()]
-            z = torch.Tensor(representation['mean'])
-            fig = visualize_model.plot_latent_vs_ground(z, latnt_sizes=[16, 16])
-            wandb.log({'projection': wandb.Image(fig)})
-            wandb.join()
-
+                representation = np.load(os.path.join(output_directory, 'representation', 'representation.npy'),
+                                         allow_pickle=True)
+                representation = representation[()]
+                z = torch.Tensor(representation['mean'])
+                fig = visualize_model.plot_latent_vs_ground(z, latnt_sizes=[16, 16])
+                wandb.log({'projection': wandb.Image(fig)})
+                wandb.join()
+    # exit()
     method = "vae"
     for random_seed in range(3):
-        for phase, beta in enumerate([13, 6]):
+        for phase, beta in enumerate([13, 3]):
             # if True:
             #     phase, beta = 1, 6
             steps = 10000 * phase + 5000
