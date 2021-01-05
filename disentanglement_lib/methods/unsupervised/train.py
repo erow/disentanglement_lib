@@ -101,7 +101,7 @@ def train(model_dir,
     # We create a TPUEstimator based on the provided model. This is primarily so
     # that we could switch to TPU training in the future. For now, we train
     # locally on GPUs.
-    save_checkpoints_steps = training_steps // 10
+    save_checkpoints_steps = training_steps // 200
     input_shape = [tf_data_shape[2], tf_data_shape[0], tf_data_shape[1]]
     autoencoder = model(input_shape)
 
@@ -130,7 +130,7 @@ def train(model_dir,
             loss = summary['loss']
 
             if (global_step + 1) % save_checkpoints_steps == 0:
-                autoencoder.save(model_dir, f'ckp-{global_step:06d}.pth')
+                # autoencoder.save(model_dir, f'ckp-{global_step:06d}.pth')
                 mean, std, factors = [], [], []
                 with torch.no_grad():
                     for imgs, labels in test_dl:

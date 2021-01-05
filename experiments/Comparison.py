@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
     method = "annealed_vae"
     phase = 0
-    for random_seed in range(0):
+    for random_seed in range(3):
         for c in [3, 4, 5, 6]:
-            for gamma in [20, 40]:
+            for gamma in [10, 20, 40]:
                 steps = 50000
                 output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
                 wandb.init(project='experiments', tags=[experiment], reinit=True,
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         for phase, beta in enumerate([13, 3]):
             # if True:
             #     phase, beta = 1, 6
-            steps = 10000 * phase + 5000
+            steps = 15000 * phase + 8000
             output_directory = os.path.join(base_directory, experiment, method, str(random_seed))
             model_file = os.path.join(output_directory, 'model', f"{phase}.pth")
             if os.path.exists(model_file):
