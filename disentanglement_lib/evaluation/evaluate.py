@@ -37,6 +37,7 @@ from disentanglement_lib.evaluation.metrics import sap_score  # pylint: disable=
 from disentanglement_lib.evaluation.metrics import strong_downstream_task  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
+from disentanglement_lib.evaluation.metrics import action  # pylint: disable=unused-import
 from disentanglement_lib.utils import results
 import numpy as np
 import tensorflow.compat.v1 as tf
