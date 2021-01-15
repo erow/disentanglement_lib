@@ -64,27 +64,27 @@ class Shapes3D(ground_truth_data.GroundTruthData):
             self.factor_sizes)
 
 
-@property
-def num_factors(self):
-    return self.state_space.num_latent_factors
+    @property
+    def num_factors(self):
+        return self.state_space.num_latent_factors
 
 
-@property
-def factors_num_values(self):
-    return self.factor_sizes
+    @property
+    def factors_num_values(self):
+        return self.factor_sizes
 
 
-@property
-def observation_shape(self):
-    return [64, 64, 3]
+    @property
+    def observation_shape(self):
+        return [64, 64, 3]
 
 
-def sample_factors(self, num, random_state):
-    """Sample a batch of factors Y."""
-    return self.state_space.sample_latent_factors(num, random_state)
+    def sample_factors(self, num, random_state):
+        """Sample a batch of factors Y."""
+        return self.state_space.sample_latent_factors(num, random_state)
 
 
-def sample_observations_from_factors(self, factors, random_state):
-    all_factors = self.state_space.sample_all_factors(factors, random_state)
-    indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
-    return self.images[indices]
+    def sample_observations_from_factors(self, factors, random_state):
+        all_factors = self.state_space.sample_all_factors(factors, random_state)
+        indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
+        return self.images[indices]

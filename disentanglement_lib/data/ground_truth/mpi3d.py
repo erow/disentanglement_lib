@@ -61,9 +61,6 @@ class MPI3D(ground_truth_data.GroundTruthData):
                 raise ValueError(
                     "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
                         .format(mode))
-            else:
-                with open(mpi3d_path, "rb") as f:
-                    data = np.load(f)
             self.factor_sizes = [4, 4, 2, 3, 3, 40, 40]
         elif mode == "mpi3d_realistic":
             mpi3d_path = os.path.join(
@@ -73,9 +70,6 @@ class MPI3D(ground_truth_data.GroundTruthData):
                 raise ValueError(
                     "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
                         .format(mode))
-            else:
-                with open(mpi3d_path, "rb") as f:
-                    data = np.load(f)
             self.factor_sizes = [4, 4, 2, 3, 3, 40, 40]
         elif mode == "mpi3d_real":
             mpi3d_path = os.path.join(
@@ -85,13 +79,10 @@ class MPI3D(ground_truth_data.GroundTruthData):
                 raise ValueError(
                     "Dataset '{}' not found. Make sure the dataset is publicly available and downloaded correctly."
                         .format(mode))
-            else:
-                with open(mpi3d_path, "rb") as f:
-                    data = np.load(f)
             self.factor_sizes = [6, 6, 2, 3, 3, 40, 40]
         else:
             raise ValueError("Unknown mode provided.")
-
+        data = np.load(mpi3d_path)
         self.images = data["images"]
         self.latent_factor_indices = [0, 1, 2, 3, 4, 5, 6]
         self.num_total_factors = 7

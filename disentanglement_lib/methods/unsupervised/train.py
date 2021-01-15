@@ -22,7 +22,7 @@ import time
 
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
-from disentanglement_lib.data.ground_truth.ground_truth_data import TorchData
+from disentanglement_lib.data.ground_truth.ground_truth_data import GroundTruthData
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import vae  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
@@ -36,6 +36,17 @@ import gin.torch
 import pathlib, shutil
 import wandb
 
+class TorchData(Dataset):
+    def __init__(self, data: GroundTruthData):
+        self.data = data
+        self.labels, observations = data.sample(np.prod(data.factors_num_values), np.random.RandomState(0))
+        self.imgs = observations.transpose((0, 3, 1, 2))
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, item):
+        return self.imgs[item], self.labels[item]
 
 @gin.configurable("train", blacklist=["model_dir", "overwrite"])
 def train(model_dir,

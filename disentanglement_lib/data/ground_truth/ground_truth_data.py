@@ -18,7 +18,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import numpy as np
-from torch.utils.data import Dataset
 
 
 class GroundTruthData(object):
@@ -73,15 +72,34 @@ class GroundTruthData(object):
         observations = self.sample_observations_from_factors(factors, np.random.RandomState(0))
         return observations.transpose((0, 3, 1, 2))[0], factors[0]
 
+def sample_factor(ds:GroundTruthData):
+    factor = np.array([np.random.randint(i) for i in ds.factors_num_values])
+    return factor
 
-class TorchData(Dataset):
-    def __init__(self, data: GroundTruthData):
-        self.data = data
-        self.labels, observations = data.sample(np.prod(data.factors_num_values), np.random.RandomState(0))
-        self.imgs = observations.transpose((0, 3, 1, 2))
+def action(ds:GroundTruthData,factor,dim):
+    rand_seed = np.random.RandomState()
+    action_len = ds.factors_num_values[dim]
+    factors = np.repeat(factor.reshape(1,-1),action_len,0)
+    factors[:, dim] = np.arange(action_len)
+    return ds.sample_observations_from_factors(factors, rand_seed)
+
+class RandomAction(object):
+    def __init__(self, ground_truth_data: GroundTruthData,
+                 factor_index):
+        super().__init__()
+        self.data = ground_truth_data
+        self.action_index = factor_index
+        self.factor = sample_factor(self.data)
 
     def __len__(self):
-        return len(self.labels)
+        return self.data.factors_num_values[self.action_index]
 
     def __getitem__(self, item):
-        return self.imgs[item], self.labels[item]
+        factor = self.factor.copy()
+        factor[self.action_index]=item
+
+        obs = self.data.sample_observations_from_factors(factor.reshape(*([1]+list(factor.shape))),
+                            np.random.RandomState(0))
+        obs = obs.transpose(0,3,1,2)
+        return obs.squeeze(0),factor
+
