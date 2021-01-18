@@ -108,7 +108,7 @@ class conv_encoder(nn.Module):
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.net = nn.Sequential(
-            nn.Conv2d(1, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
+            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
             nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
             nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
             nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4

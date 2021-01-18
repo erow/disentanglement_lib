@@ -6,7 +6,7 @@
 """
 import os
 import time
-from disentanglement_lib.data.ground_truth import dsprites, ground_truth_data, norb, mpi3d, cars3d
+from disentanglement_lib.data.ground_truth import dsprites, ground_truth_data, norb, mpi3d, cars3d, shapes3d
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import train, vae  # pylint: disable=unused-import
@@ -84,7 +84,7 @@ def train1(model_dir, model, dataset,
 
 
 def compute_threthold(output_directory, action):
-    ds_name = str(action.data)
+    ds_name = str(action.data.__class__)
     steps = int(1e4)
     wandb.init(project='experiments', tags=[experiment], reinit=True,
                config={
@@ -109,26 +109,25 @@ def compute_threthold(output_directory, action):
 
 
 if __name__ == "__main__":
-    # dsprites.DSprites,norb.SmallNORB
-    for ds in [ dsprites.DSprites,norb.SmallNORB, mpi3d.MPI3D]:
+    # dsprites.DSprites,norb.SmallNORB,cars3d.Cars3D
+    for ds in [shapes3d.Shapes3D, cars3d.Cars3D]:
         dataset = ds()
         data_shape = dataset.observation_shape
         input_shape = [data_shape[2], data_shape[0], data_shape[1]]
-        for s in range(4):  # 每个action 多次采样
+        for s in range(3):  # 每个action 多次采样
             for a in range(dataset.num_factors):
                 action = ground_truth_data.RandomAction(dataset, a)
                 if len(action) <= 1:
                     continue
 
                 count = 0 #early stopping
-                for trail, beta in enumerate(np.linspace(1, 200, 10)):
+                for trail, beta in enumerate(np.linspace(5, 50, 10)):
                     output_directory = os.path.join(base_directory, experiment)
                     summary = compute_threthold(output_directory, action)
-
                     # 早停
-                    if summary['kl_loss'] < 0.1:
-                        count += 1
-                    else:
-                        count = 0
-                    if count > 2:
-                        break
+                    # if summary['kl_loss'] < 0.1:
+                    #     count += 1
+                    # else:
+                    #     count = 0
+                    # if count > 2:
+                    #     break

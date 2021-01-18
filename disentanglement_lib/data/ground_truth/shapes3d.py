@@ -22,11 +22,11 @@ from disentanglement_lib.data.ground_truth import ground_truth_data
 from disentanglement_lib.data.ground_truth import util
 import numpy as np
 from six.moves import range
+import h5py
 
 SHAPES3D_PATH = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "3dshapes",
-    "look-at-object-room_floor-hueXwall-hueXobj-"
-    "hueXobj-sizeXobj-shapeXview-azi.npz"
+    "3dshapes.h5"
 )
 
 
@@ -43,19 +43,20 @@ class Shapes3D(ground_truth_data.GroundTruthData):
     4 - object type (4 different values)
     5 - azimuth (15 different values)
     """
-
+    _FACTORS_IN_ORDER = ['floor_hue', 'wall_hue', 'object_hue', 'scale', 'shape',
+                         'orientation']
+    _NUM_VALUES_PER_FACTOR = {'floor_hue': 10, 'wall_hue': 10, 'object_hue': 10,
+                              'scale': 8, 'shape': 4, 'orientation': 15}
     def __init__(self):
-        with open(SHAPES3D_PATH, "rb") as f:
-            # Data was saved originally using python2, so we need to set the encoding.
-            data = np.load(f, encoding="latin1")
+        data = h5py.File(SHAPES3D_PATH, 'r')
 
-        images = data["images"]
-        labels = data["labels"]
-        n_samples = np.prod(images.shape[0:6])
-        self.images = (
-                images.reshape([n_samples, 64, 64, 3]).astype(np.float32) / 255.)
-        features = labels.reshape([n_samples, 6])
+        images = np.array(data["images"])
+        labels = np.array(data["labels"])
+
         self.factor_sizes = [10, 10, 10, 8, 4, 15]
+        n_samples = np.prod(self.factor_sizes)
+        self.images = images.astype(np.float32) / 255.
+        features = labels.reshape([n_samples, 6])
         self.latent_factor_indices = list(range(6))
         self.num_total_factors = features.shape[1]
         self.state_space = util.SplitDiscreteStateSpace(self.factor_sizes,
@@ -63,6 +64,14 @@ class Shapes3D(ground_truth_data.GroundTruthData):
         self.factor_bases = np.prod(self.factor_sizes) / np.cumprod(
             self.factor_sizes)
 
+    def get_from_index(self, indices):
+        ims = []
+        for ind in indices:
+            im = self.images[ind]
+            im = np.asarray(im)
+            ims.append(im)
+        ims = np.stack(ims, axis=0)
+        return ims.astype(np.float32) / 255.
 
     @property
     def num_factors(self):
