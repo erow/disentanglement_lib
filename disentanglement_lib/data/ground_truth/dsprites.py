@@ -176,7 +176,7 @@ class ScreamDSprites(DSprites):
         self.data_shape = [64, 64, 3]
         with open(SCREAM_PATH, "rb") as f:
             scream = PIL.Image.open(f)
-            scream.thumbnail((350, 274, 3))
+            scream.thumbnail((350, 274))
             self.scream = np.array(scream) * 1. / 255.
 
     def sample_observations_from_factors(self, factors, random_state):
