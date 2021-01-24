@@ -22,6 +22,7 @@ import numpy as np
 
 class GroundTruthData(object):
     """Abstract class for data sets that are two-step generative models."""
+    tf_format: False
 
     @property
     def num_factors(self):
