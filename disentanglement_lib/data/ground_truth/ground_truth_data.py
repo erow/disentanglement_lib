@@ -70,7 +70,7 @@ class GroundTruthData(object):
 
     def __getitem__(self, item):
         factors = self.latent_factor(item)
-        observations = self.sample_observations_from_factors(factors, np.random.RandomState(0))
+        observations = self.sample_observations_from_factors(factors, np.random.RandomState())
         return observations.transpose((0, 3, 1, 2))[0], factors[0]
 
 def sample_factor(ds:GroundTruthData):
@@ -100,7 +100,7 @@ class RandomAction(object):
         factor[self.action_index]=item
 
         obs = self.data.sample_observations_from_factors(factor.reshape(*([1]+list(factor.shape))),
-                            np.random.RandomState(0))
+                                                         np.random.RandomState())
         obs = obs.transpose(0,3,1,2)
         return obs.squeeze(0),factor
 
