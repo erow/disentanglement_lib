@@ -86,11 +86,15 @@ def action(ds:GroundTruthData,factor,dim):
 
 class RandomAction(object):
     def __init__(self, ground_truth_data: GroundTruthData,
-                 factor_index):
+                 factor_index,
+                 factor_vec=None):
         super().__init__()
         self.data = ground_truth_data
+        if factor_vec is None:
+            self.factor = sample_factor(ground_truth_data)
+        else:
+            self.factor = factor_vec
         self.action_index = factor_index
-        self.factor = sample_factor(self.data)
 
     def __len__(self):
         return self.data.factors_num_values[self.action_index]

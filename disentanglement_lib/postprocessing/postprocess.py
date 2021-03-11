@@ -22,16 +22,18 @@ import pathlib
 import shutil
 import time
 
+import wandb
 from torch.utils.data import DataLoader, Dataset
 
 from disentanglement_lib.data.ground_truth import named_data
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import load, GaussianModel
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 from disentanglement_lib.utils import results
 import numpy as np
 import torch
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 import gin
+
 
 def postprocess_with_gin(model_dir,
                          output_dir,
@@ -65,7 +67,7 @@ def postprocess_with_gin(model_dir,
 def postprocess(model_dir,
                 output_dir,
                 overwrite=False,
-                random_seed=gin.REQUIRED,
+                random_seed=0,
                 name=""):
     """Loads a trained Gaussian encoder and extracts representation.
 
@@ -82,7 +84,7 @@ def postprocess(model_dir,
     # We do not use the variable 'name'. Instead, it can be used to name
     # representations as it will be part of the saved gin config.
     del name
-
+    np.random.seed(random_seed)
     # Delete the output directory if it already exists.
     if os.path.isdir(output_dir):
         if overwrite:
@@ -93,23 +95,12 @@ def postprocess(model_dir,
     # Set up timer to keep track of elapsed time in results.
     experiment_timer = time.time()
 
-    # Automatically set the proper data set if necessary. We replace the active
-    # gin config as this will lead to a valid gin config file where the data set
-    # is present.
-    if gin.query_parameter("dataset.name") == "auto":
-        # Obtain the dataset name from the gin config of the previous step.
-        gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
-        gin_dict = results.gin_dict(gin_config_file)
-        with gin.unlock_config():
-            gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
-                "'", ""))
-    dataset = named_data.get_named_ground_truth_data()
-    dl = DataLoader(dataset, batch_size=512, num_workers=4)
-
-    # Path to TFHub module of previously trained model.
-
-    model = load(GaussianModel, model_dir).cuda()
-
+    from disentanglement_lib.methods.unsupervised.train import Train
+    train = Train()
+    dl = train.train_dataloader()
+    model = train.ae
+    model.load_state_dict(torch.load(f"{model_dir}/model.pt"))
+    model = model.cuda()
     # Run the postprocessing function which returns a transformation function
     # that can be used to create the representation from the mean and log
     # variance of the Gaussian distribution given by the encoder. Also returns
@@ -130,12 +121,10 @@ def postprocess(model_dir,
     representation = {'mean': mean,
                       'std': std,
                       'factor': factors}
-    np.save(os.path.join(output_dir, 'representation.npy'), representation)
+    file_path = os.path.join(output_dir, 'representation.npy')
+    np.save(file_path, representation)
     # We first copy over all the prior results and configs.
-    original_results_dir = os.path.join(model_dir, "results")
     results_dir = os.path.join(output_dir, "results")
     results_dict = dict(elapsed_time=time.time() - experiment_timer)
-    print(original_results_dir, results_dir)
-    results.update_result_directory(results_dir, "postprocess", results_dict,
-                                    original_results_dir)
+    results.update_result_directory(results_dir, "postprocess", results_dict)
     return representation

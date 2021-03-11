@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for vae.py."""
+"""Tests for model.py."""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from absl.testing import parameterized, absltest
-from disentanglement_lib.methods.unsupervised import vae
+from disentanglement_lib.methods.unsupervised import model
 import numpy as np
 import torch
 
@@ -35,7 +35,7 @@ class VaeTest(parameterized.TestCase):
     def test_compute_gaussian_kl(self, mean, logvar, target_low, target_high):
         mean_t = torch.FloatTensor(mean)
         logvar_t = torch.FloatTensor(logvar)
-        test_value = vae.compute_gaussian_kl(mean_t, logvar_t)
+        test_value = model.compute_gaussian_kl(mean_t, logvar_t)
         self.assertBetween(test_value, target_low, target_high)
 
     @parameterized.parameters((0, 0., 0.01), (10, 10., 10.01),
@@ -43,7 +43,7 @@ class VaeTest(parameterized.TestCase):
     def test_anneal(self, step, target_low, target_high):
         c_max = 100.
         iteration_threshold = 100
-        test_value = (vae.anneal(c_max, step, iteration_threshold))
+        test_value = (model.anneal(c_max, step, iteration_threshold))
         self.assertBetween(test_value, target_low, target_high)
 
     @parameterized.parameters(
@@ -58,7 +58,7 @@ class VaeTest(parameterized.TestCase):
             samples = torch.FloatTensor(
                 np.random.multivariate_normal(mean, cov, size=(1000000)))
 
-        test_value = (vae.compute_covariance_z_mean(samples)).numpy()
+        test_value = (model.compute_covariance_z_mean(samples)).numpy()
         self.assertBetween(np.sum((test_value - cov) ** 2), 0., 0.1)
 
     @parameterized.parameters(
@@ -66,13 +66,13 @@ class VaeTest(parameterized.TestCase):
         (np.diag(np.ones(10)), 0., 0.1), (2. * np.diag(np.ones(10)), 10., 10.1))
     def test_regularize_diag_off_diag_dip(self, matrix, target_low, target_high):
         matrix_tf = torch.FloatTensor(matrix)
-        test_value = (vae.regularize_diag_off_diag_dip(matrix_tf, 1, 1)).numpy()
+        test_value = (model.regularize_diag_off_diag_dip(matrix_tf, 1, 1)).numpy()
         self.assertBetween(test_value, target_low, target_high)
 
     @parameterized.parameters((0., -1.4190, -1.4188), (1., -0.92, -0.91))
     def test_gaussian_log_density(self, z_mean, target_low, target_high):
         matrix = torch.ones(1)
-        test_value = (vae.gaussian_log_density(matrix, z_mean, torch.FloatTensor([0.])))[0].numpy()
+        test_value = (model.gaussian_log_density(matrix, z_mean, torch.FloatTensor([0.])))[0].numpy()
         self.assertBetween(test_value, target_low, target_high)
 
     @parameterized.parameters(
@@ -82,7 +82,7 @@ class VaeTest(parameterized.TestCase):
         z = torch.randn(10000, num_dim)
         z_mean = torch.zeros(10000, num_dim)
         z_logvar = torch.zeros(10000, num_dim)
-        test_value = (vae.total_correlation(z, z_mean, z_logvar)).numpy()
+        test_value = (model.total_correlation(z, z_mean, z_logvar)).numpy()
         self.assertBetween(test_value, target_low, target_high)
 
 

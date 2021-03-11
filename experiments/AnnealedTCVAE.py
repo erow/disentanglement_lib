@@ -32,12 +32,12 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from disentanglement_lib.methods.unsupervised.vae import anneal
+from disentanglement_lib.methods.unsupervised.model import anneal
 from examples.TC import get_log_pz_qz_prodzi_qzCx
 
 from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
-from disentanglement_lib.methods.unsupervised import train, vae
+from disentanglement_lib.methods.unsupervised import train, model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.visualize import visualize_model
 import numpy as np
@@ -118,7 +118,7 @@ def run_model(output_directory, strength, run_id, overwrite=True):
 
 
 @gin.configurable("AnnealedTCVAE")  # This will allow us to reference the model.
-class AnnealedTCVAE(vae.BaseVAE):
+class AnnealedTCVAE(model.BaseVAE):
     """AnnealedTCVAE model."""
 
     def __init__(self, input_shape,

@@ -34,11 +34,11 @@ import torch
 import wandb
 from absl import logging
 
-from disentanglement_lib.methods.unsupervised.vae import anneal, load_model
+from disentanglement_lib.methods.unsupervised.model import anneal, load_model
 
 from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
-from disentanglement_lib.methods.unsupervised import train, vae
+from disentanglement_lib.methods.unsupervised import train, model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.visualize import visualize_model
 import numpy as np
@@ -143,7 +143,7 @@ if __name__ == "__main__":
                                'method': method,
                                'random_seed': random_seed
                            })
-                model = vae.BetaVAE if method == 'vae' else vae.AnnealedTCVAE
+                model = model.BetaVAE if method == 'vae' else model.AnnealedTCVAE
                 gin_bindings = [
                     'dataset.name = "dsprites_noshape"',
                     f"train.model = @{method}",

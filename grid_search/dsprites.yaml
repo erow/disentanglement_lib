@@ -1,0 +1,14 @@
+program: dlib_run.py
+method: grid
+metric:
+  goal: maximize
+  name: elbo
+parameters:
+  seed:
+    values: [0, 1, 2, 3, 4, 6, 7, 8, 9, 10]
+  model:
+    values: ['beta_vae','beta_tc_vae','annealed_vae']
+  s:
+    values: [0.05, 0.24, 0.43, 0.62, 0.81, 1.0]
+  a:
+    values: [0,0.2,0.5,0.7,1]

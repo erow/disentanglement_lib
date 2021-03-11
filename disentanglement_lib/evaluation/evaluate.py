@@ -40,7 +40,6 @@ from disentanglement_lib.evaluation.metrics import strong_downstream_task  # pyl
 from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.representation_fn import mean_representation
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import load, GaussianModel
 from disentanglement_lib.postprocessing.convert_representation import concat_representation
 from disentanglement_lib.utils import results
 import numpy as np
@@ -138,4 +137,5 @@ def evaluate(model_dir,
                                     original_results_dir)
 
     import wandb
-    wandb.summary.update(results_dict)
+    if wandb.run:
+        wandb.summary.update(results_dict)

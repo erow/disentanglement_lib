@@ -25,7 +25,6 @@ import shutil
 import torch
 
 from disentanglement_lib.data.ground_truth import named_data
-from disentanglement_lib.methods.unsupervised.vae import load_model
 from disentanglement_lib.utils import results
 from disentanglement_lib.visualize import visualize_util
 from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_effects
@@ -129,12 +128,14 @@ def visualize_reconstructions(output_dir, dataset, model,
                               random_state=np.random.RandomState()):
     # Save reconstructions.
     real_pics = dataset.sample_observations(num_pics, random_state)
-    real_pics = torch.Tensor(real_pics.transpose((0, 3, 1, 2)))  # convert tf format to torch's
-    raw_pics = model(real_pics)
+
+    real_pics1 = torch.Tensor(real_pics.transpose((0, 3, 1, 2)))  # convert tf format to torch's
+    raw_pics = model(real_pics1)
 
     pics = activation(raw_pics)
     pics = pics.transpose([0, 2, 3, 1])
-    paired_pics = np.concatenate((real_pics, pics), axis=2)
+    print(real_pics.shape, pics.shape)
+    paired_pics = np.concatenate((real_pics, pics), axis=0)
     paired_pics = [paired_pics[i, :, :, :] for i in range(paired_pics.shape[0])]
     results_dir = os.path.join(output_dir, "reconstructions")
     if not os.path.isdir(results_dir):

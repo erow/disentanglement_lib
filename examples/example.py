@@ -34,14 +34,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+
+import torch
+
+from disentanglement_lib.methods.unsupervised import train
+from disentanglement_lib.methods.unsupervised import model
 from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.evaluation.metrics import utils
-from disentanglement_lib.methods.unsupervised import train
-from disentanglement_lib.methods.unsupervised import vae
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
-import tensorflow.compat.v1 as tf
-import gin.tf
+import gin
 
 # 0. Settings
 # ------------------------------------------------------------------------------
@@ -79,22 +81,23 @@ train.train_with_gin(os.path.join(path_vae, "model"), overwrite, ["model.gin"])
 # model where the loss is given by a reconstruction loss (configured via gin)
 # plus a custom regularizer (needs to be implemented.)
 @gin.configurable("BottleneckVAE")  # This will allow us to reference the model.
-class BottleneckVAE(vae.BaseVAE):
+class BottleneckVAE(model.BaseVAE):
     """BottleneckVAE.
 
     The loss of this VAE-style model is given by:
       loss = reconstruction loss + gamma * |KL(app. posterior | prior) - target|
     """
 
-    def __init__(self, gamma=gin.REQUIRED, target=gin.REQUIRED):
+    def __init__(self, input_shape, gamma=gin.REQUIRED, target=gin.REQUIRED, *args, **kwargs):
+        super().__init__(input_shape, *args, **kwargs)
         self.gamma = gamma
         self.target = target
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         # This is how we customize BaseVAE. To learn more, have a look at the
-        # different models in vae.py.
+        # different models in model.py.
         del z_mean, z_logvar, z_sampled
-        return self.gamma * tf.math.abs(kl_loss - self.target)
+        return self.gamma * torch.abs(kl_loss - self.target)
 
 
 # We use the same training protocol that we defined in model.gin but we use gin

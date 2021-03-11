@@ -27,56 +27,18 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class Savable(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self.arags = args
-        self.kwargs = kwargs
-
-    def save(self, model_dir, filename='ckp.pth'):
-        ckp_path = os.path.join(model_dir, filename)
-        ckp_dict = dict()
-        ckp_dict['name'] = self.__class__.__name__
-        ckp_dict['args'] = self.arags
-        ckp_dict['kwargs'] = self.kwargs
-        ckp_dict['model'] = self.state_dict()
-        torch.save(ckp_dict, ckp_path)
-
-
-def all_subclasses(cls):
-    return set(cls.__subclasses__()).union(
-        [s for c in cls.__subclasses__() for s in all_subclasses(c)])
-
-
-def load(cls, model_dir, filename='ckp.pth'):
-    ckp_path = os.path.join(model_dir, filename)
-    ckp_dict = torch.load(ckp_path)
-    for sc in all_subclasses(cls):
-        if sc.__name__ == ckp_dict['name']:
-            model = sc(*ckp_dict['args'], **ckp_dict['kwargs'])
-            model.load_state_dict(ckp_dict['model'])
-            return model
-    raise LookupError('Unexpected model:%s' % ckp_dict['name'])
-
-
-
-class GaussianModel(Savable):
+class GaussianModel:
     """Abstract base class of a Gaussian encoder model."""
-    encode: callable(torch.Tensor)
-    decode: callable(torch.Tensor)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self.arags = args
-        self.kwargs = kwargs
-
-    def forward(self, images):
+    def reconstruct(self, images):
         mu, logvar = self.encode(images)
         return self.decode(mu)
 
-    def model_fn(self, features, labels):
-        """Compatible model function used for training/evaluation."""
-        raise NotImplementedError()
+    # def encode(self, images):
+    #     raise NotImplementedError
+    #
+    # def decode(self, latent):
+    #     raise NotImplementedError
 
     def sample_from_latent_distribution(self, z_mean, z_logvar):
         """Samples from the Gaussian distribution defined by z_mean and z_logvar."""
@@ -85,3 +47,10 @@ class GaussianModel(Savable):
             z_mean,
             torch.exp(z_logvar / 2) * e,
         )
+
+    def sample(self, mu, log_var):
+        std = torch.exp(log_var / 2)
+        p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std))
+        q = torch.distributions.Normal(mu, std)
+        z = q.rsample()
+        return p, q, z

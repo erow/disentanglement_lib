@@ -22,44 +22,41 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import math
-from abc import ABC
+from argparse import ArgumentParser
 
 from disentanglement_lib.methods.shared import architectures  # pylint: disable=unused-import
 from disentanglement_lib.methods.shared import losses  # pylint: disable=unused-import
-from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from six.moves import range
 from six.moves import zip
 import numpy as np
 import torch
+from torch import nn as nn
+from torch.nn import functional as F
+import wandb
 import gin
 
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 
 
-@gin.configurable("model", allowlist=["num_latent", "encoder_fn", "decoder_fn"])
-class BaseVAE(gaussian_encoder_model.GaussianModel):
+@gin.configurable("model")
+class BaseVAE(GaussianModel, nn.Module):
     """Abstract base class of a basic Gaussian encoder model."""
 
     def __init__(self, input_shape,
-                 num_latent=gin.REQUIRED,
-                 encoder_fn=gin.REQUIRED,
-                 decoder_fn=gin.REQUIRED,
-                 **kwargs):
-        if hasattr(encoder_fn, '__wrapped__'):
-            super().__init__(input_shape, num_latent=num_latent,
-                             encoder_fn=encoder_fn.__wrapped__,
-                             decoder_fn=decoder_fn.__wrapped__,
-                             **kwargs)
-        else:
-            super().__init__(input_shape, num_latent=num_latent,
-                             encoder_fn=encoder_fn,
-                             decoder_fn=decoder_fn,
-                             **kwargs)
-
+                 num_latent=10,
+                 encoder_fn=architectures.conv_encoder,
+                 decoder_fn=architectures.deconv_decoder,
+                 alpha=0):
+        super().__init__()
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
         self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
-        self.num_latent = self.encode.num_latent
+        self.num_latent = num_latent
         self.input_shape = input_shape
+        self.alpha = alpha
+        self.last_recon_loss = 0
+        if wandb.run:
+            wandb.config['alpha'] = alpha
+            wandb.config['num_latent'] = num_latent
 
     def model_fn(self, features, labels):
         """Training compatible model function."""
@@ -72,10 +69,15 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
         reconstruction_loss = torch.mean(per_sample_loss)
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
         regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
-        loss = torch.add(reconstruction_loss, regularizer)
+
+        recon_reg = (reconstruction_loss - self.last_recon_loss).abs()
+        self.last_recon_loss = reconstruction_loss.item()
+
+        loss = regularizer + reconstruction_loss - self.alpha * recon_reg
         elbo = torch.add(reconstruction_loss, kl_loss)
 
         self.summary['reconstruction_loss'] = reconstruction_loss
+        self.summary['recon_reg'] = recon_reg
         self.summary['elbo'] = -elbo
         self.summary['kl_loss'] = kl_loss
         self.summary['loss'] = loss
@@ -86,7 +88,7 @@ class BaseVAE(gaussian_encoder_model.GaussianModel):
         for i in range(kl.shape[0]):
             self.summary[f"kl/{i}"] = kl[i]
 
-        return self.summary
+        return loss, self.summary
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         raise NotImplementedError
@@ -143,8 +145,10 @@ class BetaVAE(BaseVAE):
         Returns:
           model_fn: Model function for TPUEstimator.
         """
-        super().__init__(input_shape, beta=beta, **kwargs)
+        super().__init__(input_shape, **kwargs)
         self.beta = beta
+        if wandb.run:
+            wandb.config['beta'] = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
@@ -181,10 +185,15 @@ class AnnealedVAE(BaseVAE):
           c_max: Maximum capacity of the bottleneck.
           iteration_threshold: How many iterations to reach c_max.
         """
-        super().__init__(input_shape, gamma=gamma, c_max=c_max, iteration_threshold=iteration_threshold, **kwargs)
+        super().__init__(input_shape, **kwargs)
         self.gamma = gamma
         self.c_max = c_max
         self.iteration_threshold = iteration_threshold
+
+        if wandb.run:
+            wandb.config['gamma'] = gamma
+            wandb.config['c_max'] = c_max
+            wandb.config['iteration_threshold'] = iteration_threshold
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
@@ -205,10 +214,12 @@ class FactorVAE(BaseVAE):
         Args:
           gamma: Hyperparameter for the regularizer.
         """
-        super().__init__(input_shape, gamma=gamma, **kwargs)
+        super().__init__(input_shape, )
         self.gamma = gamma
         self.discriminator = architectures.make_discriminator(self.num_latent)
         self.opt = torch.optim.Adam(self.discriminator.parameters())
+        if wandb.run:
+            wandb.config['gamma'] = gamma
 
     def model_fn(self, features, labels):
         """TPUEstimator compatible model function."""
@@ -322,10 +333,14 @@ class DIPVAE(BaseVAE):
             lambda_d = lambda_d_factor*lambda_od.
           dip_type: "i" or "ii".
         """
-        super().__init__(input_shape, lambda_od=lambda_od, lambda_d_factor=lambda_d_factor, dip_type=dip_type, **kwargs)
+        super().__init__(input_shape)
         self.lambda_od = lambda_od
         self.lambda_d_factor = lambda_d_factor
         self.dip_type = dip_type
+        if wandb.run:
+            wandb.config['lambda_od'] = lambda_od
+            wandb.config['lambda_d_factor'] = lambda_d_factor
+            wandb.config['dip_type'] = dip_type
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         cov_z_mean = compute_covariance_z_mean(z_mean)
@@ -428,136 +443,11 @@ class BetaTCVAE(BaseVAE):
         Args:
           beta: Hyperparameter total correlation.
         """
-        super().__init__(input_shape, beta=beta, **kwargs)
+        super().__init__(input_shape)
         self.beta = beta
+        if wandb.run:
+            wandb.config['beta'] = beta
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         tc = (self.beta - 1.) * total_correlation(z_sampled, z_mean, z_logvar)
         return tc + kl_loss
-
-
-@gin.configurable("AnnealedTCVAE")  # This will allow us to reference the model.
-class AnnealedTCVAE(BaseVAE):
-    """AnnealedTCVAE model."""
-
-    def __init__(self, input_shape,
-                 beta=gin.REQUIRED,
-                 gamma=gin.REQUIRED,
-                 **kwargs):
-        """
-        Args:
-          gamma: Hyperparameter for the regularizer.
-          c_max: Maximum capacity of the bottleneck.
-          iteration_threshold: How many iterations to reach c_max.
-        """
-        super().__init__(input_shape,
-                         beta=beta,
-                         gamma=gamma,
-                         **kwargs)
-        self.beta = beta
-        self.gamma = gamma
-
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
-        log_pz = gaussian_log_density(z_sampled,
-                                      torch.zeros_like(z_mean),
-                                      torch.zeros_like(z_mean)).sum(1)
-        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
-
-        mi = torch.mean(log_qzCx - log_qz)
-        tc = torch.mean(log_qz - log_qz_product)
-        dw_kl_loss = torch.mean(log_qz_product - log_pz)
-        self.summary['mi'] = mi
-        self.summary['tc'] = tc
-        self.summary['dw'] = dw_kl_loss
-        return self.gamma * mi + self.beta * tc + dw_kl_loss
-
-
-@gin.configurable("AnnealedTCVAE1")  # This will allow us to reference the model.
-class AnnealedTCVAE1(BaseVAE):
-    """AnnealedTCVAE model."""
-
-    def __init__(self, input_shape,
-                 beta=gin.REQUIRED,
-                 gamma=gin.REQUIRED,
-                 **kwargs):
-        """
-        Args:
-          gamma: Hyperparameter for the regularizer.
-          c_max: Maximum capacity of the bottleneck.
-          iteration_threshold: How many iterations to reach c_max.
-        """
-        super().__init__(input_shape,
-                         beta=beta,
-                         gamma=gamma,
-                         **kwargs)
-        self.beta = beta
-        self.gamma = gamma
-
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        c = anneal(self.gamma, self.global_step, 100000)
-
-        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
-        log_pz = gaussian_log_density(z_sampled,
-                                      torch.zeros_like(z_mean),
-                                      torch.zeros_like(z_mean)).sum(1)
-        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
-
-        mi = torch.mean(log_qzCx - log_qz)
-        tc = torch.mean(log_qz - log_qz_product)
-        dw_kl_loss = torch.mean(log_qz_product - log_pz)
-        self.summary['mi'] = mi
-        self.summary['tc'] = tc
-        self.summary['dw'] = dw_kl_loss
-        self.summary['c'] = c
-        return 500 * (-self.gamma + c - mi).abs() + self.beta * tc + dw_kl_loss
-
-
-@gin.configurable("AnnealedTCVAE2")  # This will allow us to reference the model.
-class AnnealedTCVAE2(BaseVAE):
-    """AnnealedTCVAE model."""
-
-    def __init__(self, input_shape,
-                 beta=gin.REQUIRED,
-                 gamma=gin.REQUIRED,
-                 **kwargs):
-        """
-        Args:
-          gamma: Hyperparameter for the regularizer.
-          c_max: Maximum capacity of the bottleneck.
-          iteration_threshold: How many iterations to reach c_max.
-        """
-        super().__init__(input_shape,
-                         beta=beta,
-                         gamma=gamma,
-                         **kwargs)
-        self.beta = beta
-        self.gamma = gamma
-        self.N = 3 * 6 * 40 * 32 * 32
-
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        c = 1 - anneal(1, self.global_step, 100000)
-
-        log_qzCx = gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
-        log_pz = gaussian_log_density(z_sampled,
-                                      torch.zeros_like(z_mean),
-                                      torch.zeros_like(z_mean)).sum(1)
-        _, log_qz, log_qz_product = decompose(z_sampled, z_mean, z_logvar)
-
-        # 常数矫正，但是常数不影响结果
-        batch_size = z_mean.size(0)
-        log_qz = log_qz - np.log(batch_size * self.N)
-        log_qz_product = log_qz_product - np.log(batch_size * self.N) * z_mean.size(1)
-
-        mi = torch.mean(log_qzCx - log_qz)
-        tc = torch.mean(log_qz - log_qz_product)
-        dw_kl_loss = torch.mean(log_qz_product - log_pz)
-        self.summary['mi'] = mi
-        self.summary['tc'] = tc
-        self.summary['dw'] = dw_kl_loss
-        self.summary['c'] = c
-        return self.gamma * mi * c + self.beta * tc + dw_kl_loss
-
-
-def load_model(model_dir, filename='ckp.pth'):
-    return load(GaussianModel, model_dir, filename)

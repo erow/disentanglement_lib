@@ -10,7 +10,7 @@ import time
 from disentanglement_lib.data.ground_truth import dsprites
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
-from disentanglement_lib.methods.unsupervised import train, vae  # pylint: disable=unused-import
+from disentanglement_lib.methods.unsupervised import train, model  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
 from disentanglement_lib.utils import results
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
                                'beta': beta,
                                'random_seed': random_seed
                            })
-                model = vae.BetaVAE
+                model = model.BetaVAE
                 gin_bindings = [
                     f"vae.beta={beta}",
                     f"train.training_steps = {steps}"

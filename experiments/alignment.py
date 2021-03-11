@@ -17,7 +17,7 @@ from absl import logging
 
 
 from disentanglement_lib.methods.unsupervised import train
-from disentanglement_lib.methods.unsupervised import vae
+from disentanglement_lib.methods.unsupervised import model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.data.ground_truth.translation import Translation
 from disentanglement_lib.visualize import visualize_model

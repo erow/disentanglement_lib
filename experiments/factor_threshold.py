@@ -9,8 +9,8 @@ import time
 from disentanglement_lib.data.ground_truth import dsprites, ground_truth_data, norb, mpi3d, cars3d, shapes3d
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
-from disentanglement_lib.methods.unsupervised import train, vae  # pylint: disable=unused-import
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
+from disentanglement_lib.methods.unsupervised import train, model
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 from disentanglement_lib.utils import results
 
 import numpy as np
@@ -93,7 +93,7 @@ def compute_threthold(output_directory, action):
                    'factor': action.factor,
                    "ds": ds_name
                })
-    model = vae.BetaVAE
+    model = model.BetaVAE
     gin_bindings = [
         f"vae.beta={beta}",
         f"train.training_steps = {steps}"

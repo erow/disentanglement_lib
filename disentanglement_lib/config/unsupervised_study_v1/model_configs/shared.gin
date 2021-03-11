@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-train.batch_size = 64
+train.batch_size = 256
 train.model = @vae
-train.training_steps = 300000
+train.training_steps = 70000
 train.random_seed=0
 train.lr = 0.0001
 dataset.name = "dsprites_full"
-vae.beta = 1.
 model.num_latent = 10
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder

@@ -14,19 +14,18 @@
 # limitations under the License.
 
 dataset.name = "dsprites_full"
-train.batch_size = 64
+train.batch_size = 256
 train.model = @vae
-vae.beta = 4
+vae.beta = 6
 train.random_seed = 0
 # We train for only 5 steps, in practice we train for 300000 steps.
-train.training_steps = 10000
+train.training_steps = 5000
 train.random_seed=0
-train.opt_name = @AdamOpt
-AdamOpt.args = {'lr':0.0001}
 
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
 model.num_latent = 10
+model.alpha=1
 reconstruction_loss.loss_fn = @bernoulli_loss
 
 

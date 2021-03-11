@@ -26,6 +26,34 @@ from six.moves import range
 import torch
 import imageio
 
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def array_animation(data, fps=20):
+    fig, ax = plt.subplots(figsize=(3, 3))
+    plt.tight_layout(0)
+    ax.set_axis_off()
+    if len(data.shape) == 4:
+        data = data.transpose([0, 2, 3, 1])
+
+    im = ax.imshow(data[0], vmin=0, vmax=1)
+
+    def init():
+        im.set_data(data[0])
+        return (im,)
+
+    # animation function. This is called sequentially
+    def animate(i):
+        data_slice = data[i]
+        im.set_data(data_slice)
+        return (im,)
+
+    # call the animator. blit=True means only re-draw the parts that have changed.
+    anim = animation.FuncAnimation(fig, animate, init_func=init,
+                                   frames=len(data), interval=1000 / fps, blit=True)
+    return anim
+
 
 def save_image(image, image_path):
     """Saves an image in the [0,1]-valued Numpy array to image_path.

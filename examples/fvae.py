@@ -11,9 +11,7 @@ from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.evaluation.metrics import utils
 # from disentanglement_lib.methods.shared.architectures import conv_encoder
 from disentanglement_lib.methods.unsupervised import train
-from disentanglement_lib.methods.unsupervised import vae
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import load
-from disentanglement_lib.methods.unsupervised.vae import load_model
+from disentanglement_lib.methods.unsupervised import model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.utils import aggregate_results
 import torch
@@ -70,7 +68,7 @@ gin_bindings = [
     "vae.beta=120",
     f"train.training_steps={steps}"
 ]
-run_model(model_dir, gin_bindings, vae.BetaVAE)
+run_model(model_dir, gin_bindings, model.BetaVAE)
 
 # phase = 1
 # steps = steps * 2

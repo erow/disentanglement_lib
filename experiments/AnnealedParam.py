@@ -33,12 +33,12 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from disentanglement_lib.methods.unsupervised.vae import anneal
+from disentanglement_lib.methods.unsupervised.model import anneal
 from examples.TC import get_log_pz_qz_prodzi_qzCx
 
 from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
-from disentanglement_lib.methods.unsupervised import train, vae
+from disentanglement_lib.methods.unsupervised import train, model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.visualize import visualize_model
 import numpy as np
@@ -117,7 +117,7 @@ def run_model(output_directory, config, overwrite=True):
 
 
 @gin.configurable("AnnealedTCVAE1")  # This will allow us to reference the model.
-class AnnealedTCVAE1(vae.BaseVAE):
+class AnnealedTCVAE1(model.BaseVAE):
     """AnnealedTCVAE model."""
 
     def __init__(self, input_shape,
@@ -140,11 +140,11 @@ class AnnealedTCVAE1(vae.BaseVAE):
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         c = anneal(self.gamma, self.global_step, 100000)
 
-        log_qzCx = vae.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
-        log_pz = vae.gaussian_log_density(z_sampled,
-                                          torch.zeros_like(z_mean),
-                                          torch.zeros_like(z_mean)).sum(1)
-        _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
+        log_qzCx = model.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = model.gaussian_log_density(z_sampled,
+                                            torch.zeros_like(z_mean),
+                                            torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = model.decompose(z_sampled, z_mean, z_logvar)
 
         mi = torch.mean(log_qzCx - log_qz)
         tc = torch.mean(log_qz - log_qz_product)
@@ -157,7 +157,7 @@ class AnnealedTCVAE1(vae.BaseVAE):
 
 
 @gin.configurable("AnnealedTCVAE2")  # This will allow us to reference the model.
-class AnnealedTCVAE2(vae.BaseVAE):
+class AnnealedTCVAE2(model.BaseVAE):
     """AnnealedTCVAE model."""
 
     def __init__(self, input_shape,
@@ -181,11 +181,11 @@ class AnnealedTCVAE2(vae.BaseVAE):
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         c = 1 - anneal(1, self.global_step, 100000)
 
-        log_qzCx = vae.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
-        log_pz = vae.gaussian_log_density(z_sampled,
-                                          torch.zeros_like(z_mean),
-                                          torch.zeros_like(z_mean)).sum(1)
-        _, log_qz, log_qz_product = vae.decompose(z_sampled, z_mean, z_logvar)
+        log_qzCx = model.gaussian_log_density(z_sampled, z_mean, z_logvar).sum(1)
+        log_pz = model.gaussian_log_density(z_sampled,
+                                            torch.zeros_like(z_mean),
+                                            torch.zeros_like(z_mean)).sum(1)
+        _, log_qz, log_qz_product = model.decompose(z_sampled, z_mean, z_logvar)
 
         # 常数矫正，但是常数不影响结果
         batch_size = z_mean.size(0)

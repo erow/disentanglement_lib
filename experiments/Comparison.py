@@ -17,11 +17,11 @@ import torch
 import wandb
 from absl import logging
 
-from disentanglement_lib.methods.unsupervised.vae import anneal, load_model
+from disentanglement_lib.methods.unsupervised.model import anneal, load_model
 
 from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
-from disentanglement_lib.methods.unsupervised import train, vae
+from disentanglement_lib.methods.unsupervised import train, model
 from disentanglement_lib.postprocessing import postprocess
 from disentanglement_lib.visualize import visualize_model
 import numpy as np
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                                'method': method,
                                'random_seed': random_seed
                            })
-                model = vae.AnnealedVAE
+                model = model.AnnealedVAE
                 gin_bindings = [
                     'dataset.name = "translation"',
                     f"translation.img_size=(2,8,1)",
@@ -120,7 +120,7 @@ if __name__ == "__main__":
                            'method': method,
                            'random_seed': random_seed
                        })
-            model = vae.BetaVAE
+            model = model.BetaVAE
             gin_bindings = [
                 'dataset.name = "translation"',
                 f"translation.img_size=(2,8,1)",
