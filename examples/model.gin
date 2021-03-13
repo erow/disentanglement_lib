@@ -19,13 +19,13 @@ train.model = @vae
 vae.beta = 6
 train.random_seed = 0
 # We train for only 5 steps, in practice we train for 300000 steps.
-train.training_steps = 5000
-train.random_seed=0
+train.training_steps = 3000
+train.random_seed=999
 
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
 model.num_latent = 10
-model.alpha=1
+model.alpha=0.2
 reconstruction_loss.loss_fn = @bernoulli_loss
 
 

@@ -32,7 +32,7 @@ import matplotlib.animation as animation
 
 def array_animation(data, fps=20):
     fig, ax = plt.subplots(figsize=(3, 3))
-    plt.tight_layout(0)
+    plt.tight_layout()
     ax.set_axis_off()
     if len(data.shape) == 4:
         data = data.transpose([0, 2, 3, 1])
@@ -53,6 +53,61 @@ def array_animation(data, fps=20):
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=len(data), interval=1000 / fps, blit=True)
     return anim
+
+
+def traversal_latents(base_latent, traversal_vector, dim):
+    l = len(traversal_vector)
+    traversals = base_latent.repeat(l, 1)
+    traversals[:, dim] = traversal_vector
+    return traversals
+
+
+def plot_bar(axes, images, label=None):
+    for ax, img in zip(axes, images):
+        if len(img.shape) == 2:
+            ax.imshow(img)
+        elif img.shape[2] == 1:
+            ax.imshow(img.squeeze(2))
+        ax.axis('off')
+
+    if label:
+        axes[-1].get_yaxis().set_label_position("right")
+        axes[-1].set_ylabel(label)
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
+    """
+
+    :param mu: Tensor: [1,dim]
+    :param decode:
+    :param traversal_len:
+    :param dim_list:
+    :param r:
+    :return:
+    """
+    dim_len = len(dim_list)
+    if len(mu.shape) == 1:
+        mu = mu.unsqueeze(0)
+    with torch.no_grad():
+        fig, axes = plt.subplots(traversal_len, dim_len, squeeze=False,
+                                 figsize=(dim_len, traversal_len))
+        #         axes = axes.reshape(traversal_len)
+        plt.tight_layout(pad=0.1)
+
+        for i, dim in enumerate(dim_list):
+            base_latents = mu.clone()
+            linear_traversal = torch.linspace(-r, r, traversal_len)
+            traversals = traversal_latents(base_latents, linear_traversal, dim)
+            recon_batch = decode(traversals)
+
+            plot_bar(axes[:, i], sigmoid(recon_batch))
+
+        plt.subplots_adjust(wspace=0.05, hspace=0.05)
+        return fig
 
 
 def save_image(image, image_path):

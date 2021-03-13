@@ -25,7 +25,9 @@ import shutil
 import torch
 
 from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.methods.unsupervised.train import Train
 from disentanglement_lib.utils import results
+from disentanglement_lib.utils.hub import convert_model
 from disentanglement_lib.visualize import visualize_util
 from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_effects
 import numpy as np
@@ -43,7 +45,7 @@ VAR_THRESHOLD = 5e-2
 
 def sigmoid(x):
     if isinstance(x, torch.Tensor):
-        return sigmoid(x.numpy())
+        return sigmoid(x.data.numpy())
     return stats.logistic.cdf(x)
 
 
@@ -51,6 +53,7 @@ def tanh(x):
     if isinstance(x, torch.Tensor):
         return tanh(x.numpy())
     return np.tanh(x) / 2. + .5
+
 
 def visualize(model_dir,
               output_dir,
@@ -80,10 +83,9 @@ def visualize(model_dir,
     # gin config as this will lead to a valid gin config file where the data set
     # is present.
     # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
+    gin_config_file = os.path.join(model_dir, "train.gin")
+    gin.parse_config_file(gin_config_file, True)
     gin_dict = results.gin_dict(gin_config_file)
-    gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
-        "'", ""))
 
     # Automatically infer the activation function from gin config.
     activation_str = gin_dict["reconstruction_loss.activation"]
@@ -95,27 +97,18 @@ def visualize(model_dir,
         raise ValueError(
             "Activation function  could not be infered from gin config.")
 
-    dataset = named_data.get_named_ground_truth_data()
-
-    model = load_model(model_dir)
+    train = Train()
+    dataset = train.data
+    model = train.ae
+    model.load_state_dict(torch.load(os.path.join(model_dir, "model.pt")))
     model.eval()
     num_latent = model.num_latent
 
     # Save samples.
-    def _decoder(latent_vectors):
-        with torch.no_grad():
-            torch_imgs = model.decode(torch.Tensor(latent_vectors)).numpy()
-            return torch_imgs.transpose((0, 2, 3, 1))
-
-    def _encoder(obs):
-        with torch.no_grad():
-            obs = torch.Tensor(obs.transpose((0, 3, 1, 2)))  # convert tf format to torch's
-            mu, logvar = model.encode(obs)
-            mu, logvar = mu.numpy(), logvar.numpy()
-            return mu, logvar
+    _encoder, _decoder = convert_model(model)
 
     visualize_reconstructions(output_dir, dataset, model, activation=activation)
-    visualize_samples(output_dir, num_latent, _encoder, activation=activation)
+    visualize_samples(output_dir, num_latent, _decoder, activation=activation)
     visualize_traversal(output_dir, dataset, _encoder, _decoder, activation=activation)
     visualize_intervention(output_dir, dataset, _encoder, activation=activation)
     # Finally, we clear the gin config that we have set.
@@ -330,9 +323,6 @@ def latent_traversal_1d_multi_dim(generator_fn,
         row_or_columns.append(np.concatenate(images, axis))
     axis = (0 if transpose else 1)
     return np.concatenate(row_or_columns, axis)
-
-
-
 
 
 def vis_projection(factors, latents, results_dir):

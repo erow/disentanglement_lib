@@ -27,7 +27,6 @@ from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import model  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 from disentanglement_lib.utils import results
-from disentanglement_lib.visualize import visualize_model
 
 import numpy as np
 from argparse import ArgumentParser
@@ -40,6 +39,9 @@ from torch.utils.data import Dataset, DataLoader
 import gin
 import pathlib, shutil
 import wandb
+
+from disentanglement_lib.utils.hub import convert_model
+from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
 
 
 @gin.configurable("train", blacklist=[])
@@ -83,10 +85,27 @@ class Train(pl.LightningModule):
         self.ae = model(img_shape)
 
     def training_step(self, batch, batch_idx):
+        if (self.global_step + 1) % (self.training_steps // 100) == 0:
+            self.visualize_model()
         x, y = batch
         loss, summary = self.ae.model_fn(x, y)
         self.log_dict(summary)
         return loss
+
+    def on_fit_end(self) -> None:
+        self.visualize_model()
+
+    def visualize_model(self) -> None:
+        model = self.ae
+        model.cpu()
+        model.eval()
+        _encoder, _decoder = convert_model(model)
+        latent_dim = self.ae.num_latent
+        mu = torch.randn(1, latent_dim)
+        fig = plt_sample_traversal(mu, _decoder, 10, range(latent_dim), 2)
+        wandb.log({'traversal': wandb.Image(fig)})
+        model.cuda()
+        model.train()
 
     def train_dataloader(self) -> DataLoader:
         dl = DataLoader(self.data,
@@ -103,6 +122,9 @@ class Train(pl.LightningModule):
 
 def train(model_dir,
           overwrite):
+    from pytorch_lightning.loggers import WandbLogger
+    logger = WandbLogger(project='dlib', tags=['v3'])
+
     model_path = pathlib.Path(model_dir)
     # Delete the output directory if it already exists.
     if model_path.exists():
@@ -113,8 +135,7 @@ def train(model_dir,
     model_path.mkdir(parents=True, exist_ok=True)
 
     gpus = torch.cuda.device_count()
-    from pytorch_lightning.loggers import WandbLogger
-    logger = WandbLogger(project='dlib')
+
     pl_model = Train()
     if gpus > 0:
         trainer = pl.Trainer(logger, max_steps=pl_model.training_steps,
@@ -127,11 +148,12 @@ def train(model_dir,
 
     trainer.fit(pl_model)
     torch.save(pl_model.ae.state_dict(), f"{model_dir}/model.pt")
-    wandb.save(f"{model_dir}/model.pt")
+    wandb.save(f"{model_dir}/model.pt", base_path=model_dir)
     from disentanglement_lib.utils.results import save_gin
     save_gin(f"{model_dir}/train.gin")
-    wandb.save(f"{model_dir}/train.gin")
+    wandb.save(f"{model_dir}/train.gin", base_path=model_dir)
     return pl_model
+
 
 def train_with_gin(model_dir,
                    overwrite=False,
@@ -156,3 +178,26 @@ def train_with_gin(model_dir,
     print(gin.operative_config_str())
     train(model_dir, overwrite)
     gin.clear_config()
+
+
+if __name__ == '__main__':
+    from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
+
+    study = UnsupervisedStudyV1()
+    from disentanglement_lib.data.ground_truth import dsprites
+
+    dataset = dsprites.DSprites([1, 2, 3])
+    dl = DataLoader(dataset,
+                    batch_size=256,
+                    num_workers=4,
+                    shuffle=True,
+                    pin_memory=True)
+    _, conf = study.get_model_config(0)
+    gin.parse_config_files_and_bindings([conf], ["train.model=@vae",
+                                                 "vae.beta=7"])
+    pl_model = Train()
+    from pytorch_lightning.loggers import WandbLogger
+
+    logger = WandbLogger(project='dlib')
+    trainer = pl.Trainer(logger, max_epochs=15)
+    trainer.fit(pl_model, dl)

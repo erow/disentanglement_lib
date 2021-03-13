@@ -28,10 +28,11 @@ parser.add_argument('--s', default=1, type=float, help="Disentanglement pressure
 parser.add_argument('--a', default=0, type=float, help="Reconstruction regularization.")
 parser.add_argument('--dataset', choices=[
     "dsprites_full", "color_dsprites", "noisy_dsprites",
-    "scream_dsprites", "smallnorb", "cars3d", "shapes3d"
-], default="dsprites_full")
+    "scream_dsprites", "smallnorb", "cars3d", "shapes3d",
+    "dsprites_tiny"
+], default="dsprites_tiny")
 parser.add_argument('--overwrite', default=True, type=bool)
-
+parser.add_argument('--steps', default=10000, type=int)
 
 def get_model_bindings(model, s):
     if model == "beta_vae":
@@ -62,9 +63,10 @@ if __name__ == '__main__':
     pathlib.Path(path).mkdir(parents=True)
 
     gin_bindings = get_model_bindings(args.model, args.s) + [
-        # "train.training_steps=1500",
         f"model.alpha={args.a}",
-        f"train.random_seed={args.seed}"
+        f"train.training_steps={args.steps}",
+        f"train.random_seed={args.seed}",
+        f"dataset.name='{args.dataset}'"
     ]
     _, share_conf = study.get_model_config()
 
@@ -74,13 +76,12 @@ if __name__ == '__main__':
     gin.parse_config(gin_bindings)
 
     # 3. Extract the mean representation for both of these models.
-    representation_path = os.path.join(path, "representation")
+    # representation_path = os.path.join(path, "representation")
     model_path = os.path.join(path, "model")
-    postprocess.postprocess(model_path, representation_path, overwrite)
+    # postprocess.postprocess(model_path, representation_path, overwrite)
     confs = study.get_eval_config_files()
     for metric_conf in [confs[5], confs[8]]:
         metric = metric_conf.split('/')[-1][:-4]
         result_path = os.path.join(path, "metrics", metric)
-        representation_path = os.path.join(path, "representation")
         evaluate.evaluate_with_gin(
-            representation_path, result_path, overwrite, [metric_conf])
+            model_path, result_path, overwrite, [metric_conf, share_conf], gin_bindings)

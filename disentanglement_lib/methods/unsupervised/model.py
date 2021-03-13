@@ -53,7 +53,7 @@ class BaseVAE(GaussianModel, nn.Module):
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.alpha = alpha
-        self.last_recon_loss = 0
+
         if wandb.run:
             wandb.config['alpha'] = alpha
             wandb.config['num_latent'] = num_latent
@@ -64,20 +64,36 @@ class BaseVAE(GaussianModel, nn.Module):
         self.summary = {}
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-        reconstructions = self.decode(z_sampled)
-        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
-        reconstruction_loss = torch.mean(per_sample_loss)
+        z_fake = torch.randn_like(z_sampled)
+
+        pos_recons = self.decode(z_sampled)
+        neg_recons = self.decode(z_fake)
+
+        # tp = features.clamp(1e-4, 1 - 1e-4)
+        pp = pos_recons.sigmoid().clamp(1e-4, 1 - 1e-4)
+        np = neg_recons.sigmoid().clamp(1e-4, 1 - 1e-4)
+
+        # inter_tpn = tp * pp * np
+        # inter_pt = tp * pp
+        inter_pn = np * pp
+
+        recon_loss = losses.make_reconstruction_loss(features, pos_recons).mean()
+        pos_recon_loss = recon_loss
+        neg_recon_loss = (F.binary_cross_entropy(np, pp.data, reduction='none')
+                          * inter_pn.data).sum([1, 2, 3]).mean()
+
+        reconstruction_loss = (pos_recon_loss - neg_recon_loss * self.alpha)
+
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
         regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
 
-        recon_reg = (reconstruction_loss - self.last_recon_loss).abs()
-        self.last_recon_loss = reconstruction_loss.item()
+        loss = regularizer + reconstruction_loss
+        elbo = torch.add(recon_loss, kl_loss)
 
-        loss = regularizer + reconstruction_loss - self.alpha * recon_reg
-        elbo = torch.add(reconstruction_loss, kl_loss)
-
-        self.summary['reconstruction_loss'] = reconstruction_loss
-        self.summary['recon_reg'] = recon_reg
+        self.summary['reconstruction_loss'] = recon_loss
+        self.summary['pos_recon_loss'] = pos_recon_loss
+        self.summary['neg_recon_loss'] = neg_recon_loss
+        # self.summary['recon_gap'] = gap.mean()
         self.summary['elbo'] = -elbo
         self.summary['kl_loss'] = kl_loss
         self.summary['loss'] = loss
@@ -92,6 +108,9 @@ class BaseVAE(GaussianModel, nn.Module):
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         raise NotImplementedError
+
+    def forward(self, x):
+        return self.reconstruct(x)
 
 
 def shuffle_codes(z):

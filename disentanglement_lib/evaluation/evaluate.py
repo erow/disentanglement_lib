@@ -24,6 +24,8 @@ import shutil
 import time
 import warnings
 
+import torch
+
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.evaluation import representation_fn  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import beta_vae  # pylint: disable=unused-import
@@ -40,10 +42,13 @@ from disentanglement_lib.evaluation.metrics import strong_downstream_task  # pyl
 from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.representation_fn import mean_representation
+from disentanglement_lib.methods.unsupervised.train import Train
 from disentanglement_lib.postprocessing.convert_representation import concat_representation
 from disentanglement_lib.utils import results
 import numpy as np
 import gin
+
+from disentanglement_lib.utils.hub import get_model, convert_model
 
 
 def evaluate_with_gin(model_dir,
@@ -117,15 +122,21 @@ def evaluate(model_dir,
                 "'", ""))
     dataset = named_data.get_named_ground_truth_data()
 
+
     # Using the learned distribution (mu, std) instead of the model
-    variables = np.load(os.path.join(model_dir, 'representation.npy'), allow_pickle=True)
-    variables = variables[()]
-    distributions = concat_representation(dataset, variables)
+    # variables = np.load(os.path.join(model_dir, 'representation.npy'), allow_pickle=True)
+    # variables = variables[()]
+    # distributions = concat_representation(dataset, variables)
+    model = get_model(model_dir)
+    _encode, _decoder = convert_model(model)
+
+    def fn(distribute):
+        return representation_fn(_encode(distribute))
 
     artifact_dir = os.path.join(model_dir, "artifacts", name)
     results_dict = evaluation_fn(
-        distributions,
-        representation_fn,
+        dataset,
+        fn,
         random_state=np.random.RandomState(random_seed),
         artifact_dir=artifact_dir)
 
@@ -133,9 +144,18 @@ def evaluate(model_dir,
     original_results_dir = os.path.join(model_dir, "results")
     results_dir = os.path.join(output_dir, "results")
     results_dict["elapsed_time"] = time.time() - experiment_timer
-    results.update_result_directory(results_dir, "evaluation", results_dict,
-                                    original_results_dir)
+    results.update_result_directory(results_dir, "evaluation", results_dict)
 
     import wandb
     if wandb.run:
         wandb.summary.update(results_dict)
+        wandb.save(f"{results_dir}/aggregate/evaluation.json", base_path=output_dir)
+
+
+if __name__ == '__main__':
+    import gin
+    from disentanglement_lib.evaluation import evaluate
+
+    mig_conf = 'disentanglement_lib/config/unsupervised_study_v1/metric_configs/mig.gin'
+    gin.parse_config_files_and_bindings(["train.gin", mig_conf], [], False, True)
+    evaluate.evaluate('./', 'metric', True)

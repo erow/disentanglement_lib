@@ -69,7 +69,7 @@ def _compute_mig(mus_train, ys_train):
     sorted_m = np.sort(m, axis=0)[::-1]
     score_dict["discrete_mig"] = np.mean(
         np.divide(sorted_m[0, :] - sorted_m[1, :], entropy[:]))
-    score_dict["discrete_d_mig"] = np.divide(sorted_m[0, :] - sorted_m[1, :], entropy[:]).tolist()
+    # score_dict["discrete_d_mig"] = np.divide(sorted_m[0, :] - sorted_m[1, :], entropy[:]).tolist()
     score_dict["discrete_mi"] = m.tolist()
     return score_dict
 

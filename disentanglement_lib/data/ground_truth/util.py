@@ -58,7 +58,7 @@ class SplitDiscreteStateSpace(object):
             factors[:, pos] = self._sample_factor(i, num, random_state)
         return factors
 
-    def sample_all_factors(self, latent_factors, random_state):
+    def sample_all_factors(self, latent_factors, _random_state):
         """Samples the remaining factors based on the latent factors."""
         num_samples = latent_factors.shape[0]
         all_factors = np.zeros(
