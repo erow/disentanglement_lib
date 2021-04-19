@@ -108,12 +108,12 @@ class conv_encoder(nn.Module):
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.net = nn.Sequential(
-            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
-            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
-            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
-            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
+            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 32x32
+            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 16
+            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 8
+            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 4
             nn.Flatten(),
-            nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
+            nn.Linear(4 * 4 * base_channel * 2, 256), nn.LeakyReLU(),
             nn.Linear(256, num_latent * 2)
         )
 
@@ -181,6 +181,9 @@ class deconv_decoder(nn.Module):
             nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
+        # nn.init.kaiming_uniform_(self.net[0].weight, nonlinearity='sigmoid')
+        # nn.init.kaiming_uniform_(self.net[2].weight, nonlinearity='sigmoid')
+        
 
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
@@ -290,8 +293,8 @@ class test_decoder(nn.Module):
         return torch.reshape(x, shape=[-1] + self.output_shape)
 
 
-@gin.configurable("fractional_conv_encoder", allowlist=[])
-class fractional_conv_encoder(nn.Module):
+@gin.configurable("lite_conv_encoder", allowlist=[])
+class lite_conv_encoder(nn.Module):
     def __init__(self, input_shape, num_latent,
                  base_channel=8,
                  groups=4,
@@ -319,3 +322,23 @@ class fractional_conv_encoder(nn.Module):
             log_var_list.append(log_var)
 
         return torch.cat(mean_list, 1), torch.cat(log_var_list, 1)
+
+
+class lite_decoder(nn.Module):
+    def __init__(self, num_latent, output_shape):
+        super().__init__()
+        self.num_latent = num_latent
+        self.output_shape = output_shape
+        self.net = nn.Sequential(
+            nn.Linear(num_latent, 256), nn.LeakyReLU(),
+            nn.Linear(256, 256), nn.LeakyReLU(),
+            View([-1, 16, 4, 4]),
+            nn.ConvTranspose2d(16, 16, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
+            nn.ConvTranspose2d(16, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
+            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
+            nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
+        )
+
+    def forward(self, latent_tensor):
+        x = self.net(latent_tensor)
+        return torch.reshape(x, shape=[-1] + self.output_shape)

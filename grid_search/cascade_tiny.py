@@ -4,17 +4,13 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('s', type=int, default=0)
+parser.add_argument('e', type=int, default=0)
 args = parser.parse_args()
 
-seed = h.sweep('seed', h.discrete(range(args.s, args.s + 2)))
-a = h.sweep('a', h.discrete([2]))
-lam = h.sweep('lam', h.discrete([0, 1e-3, 1]))
-
-model = [
-    {'model': 'cascade_vae_c'},
-    {'model': 'beta_tc_vae'},
-    {'model': 'beta_vae'}
-]
+seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
+a = h.sweep('model.alpha', h.discrete([1, 2]))
+lam = h.sweep('model.lam', h.discrete([1e-3, 1]))
+model = h.sweep('train.model', h.discrete(['@cascade_vae_c_reg', '@cascade_vae_c_reg1']))
 
 runs = h.product([seed, a, lam, model])
 general_config = {

@@ -2,6 +2,7 @@ import subprocess
 import os
 import abc
 import hashlib
+import tarfile
 import zipfile
 import glob
 from PIL import Image
@@ -9,9 +10,8 @@ from tqdm import tqdm
 from torchvision import transforms, datasets
 import numpy as np
 import logging
-from disentanglement_lib.data.unsupervised.unsupervied_data import UnsupervisedData
+from disentanglement_lib.data.unsupervised.unsupervied_data import UnsupervisedData, preprocess
 from torchvision import transforms, datasets
-
 
 class Chairs(datasets.ImageFolder, UnsupervisedData):
     """Chairs Dataset from [1].
@@ -33,12 +33,19 @@ class Chairs(datasets.ImageFolder, UnsupervisedData):
         and pattern recognition (pp. 3762-3769).
 
     """
+
+    @property
+    def observation_shape(self):
+        return [64, 64, 1]
+
     urls = {"train": "https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar"}
     files = {"train": "chairs_64"}
     img_size = (1, 64, 64)
 
-    def __init__(self, logger=logging.getLogger(__name__)):
-        self.train_data = os.path.join(self.root, 'chairs', type(self).files["train"])
+    def __init__(self,
+                 root='/data/disentanglement',
+                 logger=logging.getLogger(__name__)):
+        self.train_data = os.path.join(root, 'chairs', type(self).files["train"])
         self.transforms = transforms.Compose([transforms.Grayscale(),
                                               transforms.ToTensor()])
         self.logger = logger
@@ -47,8 +54,8 @@ class Chairs(datasets.ImageFolder, UnsupervisedData):
             self.logger.info("Downloading {} ...".format(str(type(self))))
             self.download()
             self.logger.info("Finished Downloading.")
-
-        super().__init__(transform=self.transforms)
+        datasets.ImageFolder.__init__(self, self.train_data, transform=self.transforms)
+        UnsupervisedData.__init__(self)
 
     def download(self):
         """Download the dataset."""

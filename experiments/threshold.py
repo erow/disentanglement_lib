@@ -11,7 +11,7 @@ from disentanglement_lib.data.ground_truth import dsprites
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import train, model  # pylint: disable=unused-import
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel, load
+from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 from disentanglement_lib.utils import results
 
 import numpy as np

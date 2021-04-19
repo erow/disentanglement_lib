@@ -1,19 +1,30 @@
-
-train.batch_size = 64
-train.training_steps = 20000
+train.batch_size = 256
+train.model = @vae
+train.training_steps = 70000
+model.stage_steps=6000
 train.random_seed=0
-train.lr = 0.0001
-
+train.lr = 0.0005
+dataset.name = "dsprites_full"
+model.num_latent = 10
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
-model.num_latent = 10
 reconstruction_loss.loss_fn = @bernoulli_loss
 
-beta_tc_vae.beta=6.
-vae.beta=6.
-AnnealedTCVAE.gamma=6.
-AnnealedTCVAE.beta=10.
-annealed_vae.iteration_threshold=20000
-annealed_vae.c_max = 3.
-annealed_vae.gamma = 100
+# metrics
+mig.num_train=10000
+discretizer.discretizer_fn = @histogram_discretizer
+discretizer.num_bins = 20
 
+factor_vae_score.num_variance_estimate=10000
+factor_vae_score.num_train=10000
+factor_vae_score.num_eval=5000
+factor_vae_score.batch_size=64
+prune_dims.threshold = 0.05
+
+beta_tc_vae.beta=6.
+vae.beta=4.
+annealed_vae.iteration_threshold = 60000
+annealed_vae.c_max = 25.
+annealed_vae.gamma = 1000
+cascade_vae_c.beta_min = 1
+cascade_vae_c.beta_max = 10

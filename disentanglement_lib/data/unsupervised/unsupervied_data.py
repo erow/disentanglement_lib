@@ -66,10 +66,10 @@ class UnsupervisedData(abc.ABC):
     """
     root = os.environ.get("DISENTANGLEMENT_LIB_DATA", ".")
 
-    def __init__(self, transforms_list=[], logger=logging.getLogger(__name__)):
-        self.transforms = transforms.Compose(transforms_list)
-        self.logger = logger
+    def __init__(self, logger=logging.getLogger(__name__)):
 
+        self.logger = logger
+        self.supervision = False
         if not os.path.isdir(self.root):
             self.logger.info("Downloading {} ...".format(str(type(self))))
             self.download()

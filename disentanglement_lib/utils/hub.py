@@ -26,19 +26,19 @@ def get_model(run,
     return model
 
 
-def convert_model(model):
+def convert_model(model, device='cpu'):
     def _decoder(latent_vectors):
         with torch.no_grad():
-            z = torch.Tensor(latent_vectors)
-            torch_imgs = model.decode(z).numpy()
+            z = torch.FloatTensor(latent_vectors).to(device)
+            torch_imgs = model.decode(z).cpu().numpy()
             return torch_imgs.transpose((0, 2, 3, 1))
 
     def _encoder(obs):
         with torch.no_grad():
             # if isinstance(obs,torch.Tensor):
-            obs = torch.Tensor(obs.transpose((0, 3, 1, 2)))  # convert tf format to torch's
+            obs = torch.FloatTensor(obs.transpose((0, 3, 1, 2))).to(device)  # convert tf format to torch's
             mu, logvar = model.encode(obs)
-            mu, logvar = mu.numpy(), logvar.numpy()
+            mu, logvar = mu.cpu().numpy(), logvar.cpu().numpy()
             return mu, logvar
 
     return _encoder, _decoder

@@ -4,130 +4,132 @@
 1. KL与β成反比，且存在一threshold使得，当β>threshold时，KL<0.1。
 2. 这个阈值是否稳定。
 """
-import os
-import time
-from disentanglement_lib.data.ground_truth import dsprites, ground_truth_data, norb, mpi3d, cars3d, shapes3d
-from disentanglement_lib.data.ground_truth import util
-from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
-from disentanglement_lib.methods.unsupervised import train, model
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
-from disentanglement_lib.utils import results
+import argparse
+import wandb
+from pytorch_lightning.loggers import WandbLogger
+import pytorch_lightning as pl
+
+from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
+from disentanglement_lib.data.ground_truth import dsprites
+from disentanglement_lib.methods.shared import losses
+from disentanglement_lib.methods.unsupervised import train
+from disentanglement_lib.evaluation import evaluate
+from disentanglement_lib.evaluation.metrics import utils, mig
+from disentanglement_lib.methods.unsupervised.model import BaseVAE, compute_gaussian_kl, gaussian_log_density
+from disentanglement_lib.postprocessing import postprocess
+from disentanglement_lib.utils import aggregate_results
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-import gin.torch
+import gin
 import pathlib, shutil
 import wandb
 
-experiment = __file__.split('/')[-1][:-3]
-base_directory = 'experiment_results'
+from disentanglement_lib.utils.mi_estimators import estimate_entropies
 
 
-def train1(model_dir, model, dataset,
-           overwrite=True,
-           training_steps=10000,
-           random_seed=0,
-           batch_size=1,
-           opt_name=torch.optim.Adam):
-    # torch.random.manual_seed(random_seed)
-    # np.random.seed(random_seed)
-    model_path = pathlib.Path(model_dir)
-    # Delete the output directory if it already exists.
-    if model_path.exists():
-        if overwrite:
-            shutil.rmtree(model_path)
-        else:
-            print("Directory already exists and overwrite is False.")
-    model_path.mkdir(parents=True, exist_ok=True)
-    # Create a numpy random state. We will sample the random seeds for training
-    # and evaluation from this.
+class AnnealingTest(train.Train):
+    def evaluate(self) -> None:
+        dataset_loader = self.train_dataloader()
+        model = self.ae
+        model.eval()
+        self.save_model(f"_{self.global_step}.pt")
 
-    dl = DataLoader(dataset, batch_size=batch_size, num_workers=0, shuffle=True)
+        N = len(dataset_loader.dataset)  # number of data samples
+        K = model.num_latent  # number of latent variables
+        S = 1  # number of latent variable samples
+        nparams = 2
 
+        print('Computing q(z|x) distributions.')
+        # compute the marginal q(z_j|x_n) distributions
+        qz_params = torch.Tensor(N, K, nparams).cuda()
+        n = 0
+        for xs, labels in dataset_loader:
+            batch_size = xs.size(0)
+            xs = xs.view(batch_size, -1, 64, 64).cuda()
+            mu, logvar = model.encode(xs)
+            qz_params[n:n + batch_size, :, 0] = mu.data
+            qz_params[n:n + batch_size, :, 1] = logvar.data
+            n += batch_size
+        z_sampled = model.sample_from_latent_distribution(qz_params[..., 0], qz_params[..., 1])
 
-    autoencoder = model(input_shape)
+        # pz = \sum_n p(z|n) p(n)
+        logpz = gaussian_log_density(z_sampled, torch.zeros_like(z_sampled), torch.zeros_like(z_sampled)).mean(0)
+        logqz_condx = gaussian_log_density(z_sampled, qz_params[..., 0], qz_params[..., 1]).mean(0)
 
-    device = 'cuda'
+        z_sampled = z_sampled.transpose(0, 1).contiguous().view(K, N * S)
+        marginal_entropies, joint_entropy = estimate_entropies(z_sampled, qz_params)
 
-    autoencoder.to(device).train()
-    opt = opt_name(autoencoder.parameters())
-    global_step = 0
+        # Independence term
+        # KL(q(z)||prod_j q(z_j)) = log q(z) - sum_j log q(z_j)
+        dependence = (- joint_entropy + marginal_entropies.sum()).item()
 
-    summary = {}
-    while global_step < training_steps:
-        for imgs, labels in dl:
-            imgs, labels = imgs.to(device), labels.to(device)
-            autoencoder.global_step = global_step
-            summary = autoencoder.model_fn(imgs, labels)
-            loss = summary['loss']
-            wandb.log(summary)
+        # Information term
+        # KL(q(z|x)||q(z)) = log q(z|x) - log q(z) = H(z) - H(z|x)
+        H_zCx = -logqz_condx.sum().item()
+        H_qz = joint_entropy.item()
+        information = (joint_entropy - H_zCx).item()
+        z_information = (marginal_entropies + logqz_condx).cpu().numpy()
 
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-            global_step = global_step + 1
+        # Dimension-wise KL term
+        # sum_j KL(q(z_j)||p(z_j)) = sum_j (log q(z_j) - log p(z_j))
+        dimwise_kl = (marginal_entropies - logpz).sum().item()
 
-            # if (global_step + 1) % save_checkpoints_steps == 0:
-            #     torch.save(autoencoder.state_dict(), f'{model_dir}/ckp-{global_step:06d}.pth')
-            if global_step >= training_steps:
-                break
+        # Compute sum of terms analytically
+        # KL(q(z|x)||p(z)) = log q(z|x) - log p(z)
+        analytical_cond_kl = (logqz_condx - logpz).sum().item()
 
-    obs = torch.Tensor(np.stack([dataset[i][0] for i in range(len(dataset))],0)).to(device)
-    projection,_ = autoencoder.encode(obs)
-    _,index = projection.cpu().std(0).sort()
+        print('Dependence: {}'.format(dependence))
+        print('Information: {}'.format(information))
+        print('Dimension-wise KL: {}'.format(dimwise_kl))
+        print('Analytical E_p(x)[ KL(q(z|x)||p(z)) ]: {}'.format(analytical_cond_kl))
+        log = dict(TC=dependence,
+                   MI=information,
+                   ZMI=z_information,
+                   DWKL=dimwise_kl,
+                   KL=analytical_cond_kl,
+                   H_q_zCx=H_zCx,
+                   H_q_z=H_qz)
 
-    data = [[i, projection[i,index[-1]],projection[i,index[-2]]] for i in range(len(dataset))]
-    table = wandb.Table(data=data, columns=["c", index[-1],index[-2]])
-    wandb.log({f'projection': wandb.plot.line(table, "c", index[-1])})
-    return summary
+        wandb.log(log)
+        model.train()
+        model.cuda()
 
+    def on_fit_start(self) -> None:
+        self.evaluate()
 
-def compute_threthold(output_directory, action):
-    ds_name = str(action.data.__class__)
-    steps = int(1e4)
-    wandb.init(project='experiments', tags=[experiment], reinit=True,
-               config={
-                   'action': action.action_index,
-                   'beta': beta,
-                   'factor': action.factor,
-                   "ds": ds_name
-               })
-    model = model.BetaVAE
-    gin_bindings = [
-        f"vae.beta={beta}",
-        f"train.training_steps = {steps}"
-    ]
-    gin.parse_config_files_and_bindings(['shared.gin'], gin_bindings)
-    summary = train1(os.path.join(output_directory, 'model'),
-                     model,
-                     action,
-                     training_steps=steps, random_seed=0)
-    wandb.join()
-    gin.clear_config()
-    return summary
+    def on_fit_end(self) -> None:
+        # self.evaluate()
+        model = self.ae
+        model.cpu()
+        model.eval()
+        log = self.visualize_model(model)
+        if self.ae.num_latent > 1:
+            log.update(self.compute_mig(model))
+        wandb.log(log)
 
 
 if __name__ == "__main__":
-    # dsprites.DSprites,norb.SmallNORB,cars3d.Cars3D
-    for ds in [shapes3d.Shapes3D, cars3d.Cars3D]:
-        dataset = ds()
-        data_shape = dataset.observation_shape
-        input_shape = [data_shape[2], data_shape[0], data_shape[1]]
-        for s in range(3):  # 每个action 多次采样
-            for a in range(dataset.num_factors):
-                action = ground_truth_data.RandomAction(dataset, a)
-                if len(action) <= 1:
-                    continue
+    parser = argparse.ArgumentParser()
+    args, unknown = parser.parse_known_args()
 
-                count = 0 #early stopping
-                for trail, beta in enumerate(np.linspace(5, 50, 10)):
-                    output_directory = os.path.join(base_directory, experiment)
-                    summary = compute_threthold(output_directory, action)
-                    # 早停
-                    # if summary['kl_loss'] < 0.1:
-                    #     count += 1
-                    # else:
-                    #     count = 0
-                    # if count > 2:
-                    #     break
+    dataset = dsprites.DSprites([3])
+    dl = DataLoader(dataset, batch_size=16)
+    bindings = ['mig.num_train=10000',
+                'train.model=@annealed',
+                'annealed.beta_h=40',
+                'train.training_steps=30000'] + [i[2:] for i in unknown]
+    study = UnsupervisedStudyV1()
+    _, share_conf = study.get_model_config()
+    gin.parse_config_files_and_bindings([share_conf], bindings, skip_unknown=True)
+
+    logger = WandbLogger(project='dlib', tags=['ICP'])
+    print(logger.experiment.url)
+    pl_model = AnnealingTest(eval_numbers=10)
+    trainer = pl.Trainer(logger,
+                         max_steps=pl_model.training_steps,
+                         checkpoint_callback=False,
+                         progress_bar_refresh_rate=0,
+                         gpus=1, )
+    trainer.fit(pl_model, dl)

@@ -22,6 +22,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import math
+import os
 from argparse import ArgumentParser
 
 from disentanglement_lib.methods.shared import architectures  # pylint: disable=unused-import
@@ -46,17 +47,70 @@ class BaseVAE(GaussianModel, nn.Module):
                  num_latent=10,
                  encoder_fn=architectures.conv_encoder,
                  decoder_fn=architectures.deconv_decoder,
-                 alpha=0):
+                 shared=True,
+                 alpha=0,
+                 lam=0,
+                 stage_steps=4000):
         super().__init__()
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
         self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.alpha = alpha
+        self.lam = lam
+        self.summary = {}
+        self.global_step = 0
+        self.stage = 0
+        self.shared = shared
+        self.stage_steps = stage_steps
 
         if wandb.run:
             wandb.config['alpha'] = alpha
+            wandb.config['lam'] = lam
             wandb.config['num_latent'] = num_latent
+            wandb.config['shared'] = shared
+
+        if not shared:
+            self.decodes = \
+                torch.nn.Sequential(*[architectures.lite_decoder(self.num_latent, input_shape)
+                                      for _ in range(self.num_latent - 1)])
+
+    def get_decoder(self, i):
+        if self.shared:
+            return self.decode
+
+        if i == self.num_latent - 1:
+            return self.decode
+        return self.decodes[i]
+
+    def information_reg(self, kl, z_sampled, features):
+        reg_loss = 0
+        for i in range(self.num_latent):
+            r = torch.randn_like(z_sampled)
+            r[:, :i + 1] = z_sampled[:, :i + 1]
+
+            reconstructions = self.get_decoder(i)(r)
+            per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+            reg_recon = torch.mean(per_sample_loss)
+            self.summary[f'reg_recon/{i}'] = reg_recon
+            reg_loss1 = reg_recon + kl[:i + 1].sum()
+            # print(loss,reg_loss,self.alpha)
+            reg_loss = reg_loss + reg_loss1 * pow(self.alpha, i)
+
+        if self.alpha == 1:
+            s = self.num_latent
+        else:
+            s = (1 - pow(self.alpha, self.num_latent)) / (1 - self.alpha)
+        return reg_loss / s
+
+    def z_hook(self, grad):
+        if wandb.run and self.global_step % 500 == 0:
+            log = {}
+            for i in range(self.num_latent):
+                # hist = np.histogram(grad[:,i].cpu().numpy(),bins=64,range=[-3,3])
+                log[f'grad/{i}'] = wandb.Histogram(grad[:, i].cpu())  # np_histogram=hist)
+            wandb.log(log)
+        return grad
 
     def model_fn(self, features, labels):
         """Training compatible model function."""
@@ -64,49 +118,39 @@ class BaseVAE(GaussianModel, nn.Module):
         self.summary = {}
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-        z_fake = torch.randn_like(z_sampled)
+        self.stage = min(self.global_step // self.stage_steps, self.num_latent - 1)
+        if self.global_step % self.stage_steps == 0:
+            print(self.stage)
 
-        pos_recons = self.decode(z_sampled)
-        neg_recons = self.decode(z_fake)
+        self.z_sampled = z_sampled
+        reconstructions = self.decode(z_sampled)
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+        reconstruction_loss = torch.mean(per_sample_loss)
+        self.summary['reconstruction_loss'] = reconstruction_loss
 
-        # tp = features.clamp(1e-4, 1 - 1e-4)
-        pp = pos_recons.sigmoid().clamp(1e-4, 1 - 1e-4)
-        np = neg_recons.sigmoid().clamp(1e-4, 1 - 1e-4)
-
-        # inter_tpn = tp * pp * np
-        # inter_pt = tp * pp
-        inter_pn = np * pp
-
-        recon_loss = losses.make_reconstruction_loss(features, pos_recons).mean()
-        pos_recon_loss = recon_loss
-        neg_recon_loss = (F.binary_cross_entropy(np, pp.data, reduction='none')
-                          * inter_pn.data).sum([1, 2, 3]).mean()
-
-        reconstruction_loss = (pos_recon_loss - neg_recon_loss * self.alpha)
-
-        kl_loss = compute_gaussian_kl(z_mean, z_logvar)
-        regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
-
-        loss = regularizer + reconstruction_loss
-        elbo = torch.add(recon_loss, kl_loss)
-
-        self.summary['reconstruction_loss'] = recon_loss
-        self.summary['pos_recon_loss'] = pos_recon_loss
-        self.summary['neg_recon_loss'] = neg_recon_loss
-        # self.summary['recon_gap'] = gap.mean()
-        self.summary['elbo'] = -elbo
+        kl = compute_gaussian_kl(z_mean, z_logvar)
+        kl_loss = kl.sum()
         self.summary['kl_loss'] = kl_loss
-        self.summary['loss'] = loss
 
-        kl = 0.5 * torch.mean(
-            torch.square(z_mean.data) + torch.exp(z_logvar.data) - z_logvar.data - 1, [0])
+        regularizer = self.regularizer(kl, z_mean, z_logvar, z_sampled)
+        if self.lam > 0:
+            information_reg = self.information_reg(kl, z_sampled, features) * self.lam
+            loss = reconstruction_loss + regularizer + information_reg
+        else:
+            loss = reconstruction_loss + regularizer
+
+        elbo = torch.add(reconstruction_loss, kl_loss)
+
+        self.summary['elbo'] = -elbo
+        self.summary['loss'] = loss
 
         for i in range(kl.shape[0]):
             self.summary[f"kl/{i}"] = kl[i]
 
+        self.global_step += 1
         return loss, self.summary
 
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
         raise NotImplementedError
 
     def forward(self, x):
@@ -132,10 +176,8 @@ def shuffle_codes(z):
 
 def compute_gaussian_kl(z_mean, z_logvar):
     """Compute KL divergence between input Gaussian and Standard Normal."""
-    return torch.mean(
-        0.5 * torch.sum(
-            torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1, [1]),
-    )
+    return 0.5 * torch.mean(
+        torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1, [0])
 
 
 def make_metric_fn(*names):
@@ -169,8 +211,9 @@ class BetaVAE(BaseVAE):
         if wandb.run:
             wandb.config['beta'] = beta
 
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
+        kl_loss = kl.sum()
         return self.beta * kl_loss
 
 
@@ -214,9 +257,10 @@ class AnnealedVAE(BaseVAE):
             wandb.config['c_max'] = c_max
             wandb.config['iteration_threshold'] = iteration_threshold
 
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
         c = anneal(self.c_max, self.global_step, self.iteration_threshold)
+        kl_loss = kl.sum()
         return self.gamma * torch.abs(kl_loss - c)
 
 
@@ -361,7 +405,8 @@ class DIPVAE(BaseVAE):
             wandb.config['lambda_d_factor'] = lambda_d_factor
             wandb.config['dip_type'] = dip_type
 
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        kl_loss = kl.sum()
         cov_z_mean = compute_covariance_z_mean(z_mean)
         lambda_d = self.lambda_d_factor * self.lambda_od
         if self.dip_type == "i":  # Eq 6 page 4
@@ -381,7 +426,7 @@ class DIPVAE(BaseVAE):
 
 
 def gaussian_log_density(samples, mean, log_var):
-    pi = torch.tensor(math.pi)
+    pi = torch.tensor(math.pi, device=samples.device)
     normalization = torch.log(2. * pi)
     inv_sigma = torch.exp(-log_var)
     tmp = (samples - mean)
@@ -467,6 +512,162 @@ class BetaTCVAE(BaseVAE):
         if wandb.run:
             wandb.config['beta'] = beta
 
-    def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        kl_loss = kl.sum()
         tc = (self.beta - 1.) * total_correlation(z_sampled, z_mean, z_logvar)
         return tc + kl_loss
+
+
+@gin.configurable("cascade_vae_c")
+class CascadeVAEC(BaseVAE):
+    """BetaTCVAE model."""
+
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        weight = torch.ones_like(kl) * self.beta_min
+        weight[self.stage + 1:] = self.beta_max
+        kl_loss = (weight * kl).sum()
+        return kl_loss
+
+    def __init__(self, input_shape,
+                 beta_min=1,
+                 beta_max=10,
+                 td=1e5):
+        """Creates a CascadeVAE-C model.
+
+        Refers https://github.com/snu-mllab/DisentanglementICML19
+
+        Args:
+          beta_min: Hyperparameter the lower pressure.
+          beta_max: Hyperparameter the higher pressure.
+        """
+        super().__init__(input_shape)
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.td = td
+        if wandb.run:
+            wandb.config['beta_min'] = beta_min
+            wandb.config['beta_max'] = beta_max
+
+
+@gin.configurable("cascade_vae_c_reg")
+class CascadeVAECReg(CascadeVAEC):
+    def __init__(self, input_shape):
+        """
+        shared decoder
+        :param input_shape:
+        """
+        super().__init__(input_shape)
+        self.betas = [70, 40, 10, 6, 1]
+
+    def model_fn(self, features, labels):
+        """Training compatible model function."""
+        del labels
+        self.summary = {}
+        z_mean, z_logvar = self.encode(features)
+        z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
+        self.stage = min(self.global_step // self.stage_steps, self.num_latent - 1)
+        if self.global_step % self.stage_steps == 0:
+            print(self.stage)
+        if 'IPYTHONENABLE' in os.environ and self.global_step % 500 == 0:
+            z_sampled.register_hook(self.z_hook)
+
+        self.z_sampled = z_sampled
+        reconstructions = self.decode(z_sampled)
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+        reconstruction_loss = torch.mean(per_sample_loss)
+        self.summary['reconstruction_loss'] = reconstruction_loss
+
+        kl = compute_gaussian_kl(z_mean, z_logvar)
+        kl_loss = kl.sum()
+        self.summary['kl_loss'] = kl_loss
+
+        regularizer = self.regularizer(kl, z_mean, z_logvar, z_sampled)
+        information_regularizer = self.information_reg(z_sampled, kl, features)
+        loss = reconstruction_loss + regularizer + self.lam * information_regularizer
+        elbo = torch.add(reconstruction_loss, kl_loss)
+
+        self.summary['elbo'] = -elbo
+        self.summary['loss'] = loss
+
+        for i in range(kl.shape[0]):
+            self.summary[f"kl/{i}"] = kl[i]
+
+        self.global_step += 1
+        return loss, self.summary
+
+    def information_reg(self, z_sampled, kl, features):
+        reg = 0
+        for i in range(len(self.betas)):
+            r = torch.randn_like(z_sampled)
+            r[:, :i + 1] = z_sampled[:, :i + 1]
+            reconstructions = self.decode(r)
+            per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+            reg_recon = torch.mean(per_sample_loss)
+            self.summary[f'reg_recon/{i}'] = reg_recon
+
+            reg_loss = reg_recon + (kl[:i + 1] * self.betas[i]).sum()
+            reg = reg + reg_loss * pow(self.alpha, i)
+
+        return reg / pow(self.alpha, len(self.betas))
+
+
+@gin.configurable("cascade_vae_c_reg1")
+class CascadeVAECReg1(CascadeVAECReg):
+    def __init__(self, input_shape):
+        """
+        independent decoders
+        :param input_shape:
+        """
+        super().__init__(input_shape)
+        self.decodes = torch.nn.Sequential(*
+                                           [architectures.lite_decoder(self.num_latent, input_shape) for _ in
+                                            range(5)])
+
+    def information_reg(self, z_sampled, kl, features):
+        reg = 0
+        for i in range(len(self.betas)):
+            r = torch.randn_like(z_sampled)
+            r[:, :i + 1] = z_sampled[:, :i + 1]
+            decoder = self.decodes[i]
+            reconstructions = decoder(r)
+            per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+            reg_recon = torch.mean(per_sample_loss)
+            self.summary[f'reg_recon/{i}'] = reg_recon
+
+            reg_loss = reg_recon + (kl[:i + 1] * self.betas[i]).sum()
+            reg = reg + reg_loss * pow(self.alpha, i)
+        return reg / pow(self.alpha, len(self.betas))
+
+
+@gin.configurable("annealed")
+class Annealing(BaseVAE):
+    def __init__(self, input_shape, beta_h=80):
+        super().__init__(input_shape)
+        self.beta_h = beta_h
+        self.total_steps = gin.query_parameter('train.training_steps')
+        wandb.config['beta_h'] = self.beta_h
+
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        beta = max((1 - self.global_step / self.total_steps) * self.beta_h, 1)
+        self.summary['beta'] = beta
+        return beta * (kl.sum())
+
+
+@gin.configurable('deft')
+class DEFT(BaseVAE):
+    def __init__(self, input_shape,
+                 betas=gin.REQUIRED,
+                 gamma=0.1):
+        super().__init__(input_shape)
+        self.betas = betas
+        self.gamma = gamma
+
+    def z_hook(self, grad):
+        grad[:, :self.stage + 1] *= self.gamma
+        return grad
+
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        beta = self.betas[min(self.stage, len(self.betas))]
+        self.summary['beta'] = beta
+        z_sampled.register_hook(self.z_hook)
+        return beta * (kl.sum())

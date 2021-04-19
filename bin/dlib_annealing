@@ -1,0 +1,102 @@
+#!/usr/bin/env python
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import os
+
+import torch
+import wandb
+from pytorch_lightning.loggers import WandbLogger
+import pytorch_lightning as pl
+from disentanglement_lib.methods.shared import losses
+from disentanglement_lib.methods.unsupervised import train
+from disentanglement_lib.evaluation import evaluate
+from disentanglement_lib.evaluation.metrics import utils, mig
+from disentanglement_lib.methods.unsupervised.model import BaseVAE, compute_gaussian_kl
+from disentanglement_lib.postprocessing import postprocess
+from disentanglement_lib.utils import aggregate_results
+import gin
+import argparse
+
+parser = argparse.ArgumentParser()
+
+args, unknown = parser.parse_known_args()
+
+
+@gin.configurable("anneal")
+class Annealing(BaseVAE):
+    def __init__(self, input_shape, beta_h=70):
+        super().__init__(input_shape)
+        self.beta_h = beta_h
+        self.total_steps = gin.query_parameter('train.training_steps')
+        wandb.config['beta_h'] = self.beta_h
+
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        beta = max((1 - self.global_step / self.total_steps) * self.beta_h, 1)
+        self.summary['beta'] = beta
+        return beta * (kl.sum())
+
+
+class AnnealingTest(train.Train):
+    def training_step(self, batch, batch_idx):
+        if (self.global_step + 1) % (self.training_steps // 40) == 0:
+            self.evaluate()
+        x, y = batch
+        self.ae.alpha = self.global_step / self.training_steps
+        loss, summary = self.ae.model_fn(x, y)
+        self.log_dict(summary)
+        return loss
+
+    def evaluate(self) -> None:
+        model = self.ae
+        dl = self.train_dataloader()
+        model.eval()
+        zs = []
+        cs = []
+
+        with torch.no_grad():
+            for imgs, labels in dl:
+                z = model.encode(imgs.cuda())[0].cpu()
+                zs.append(z)
+                cs.append(labels.cpu())
+                if len(zs) * len(z) > 10000:
+                    break
+        zs = torch.cat(zs)
+        cs = torch.cat(cs)
+        std = zs.std(0)
+        selected_dim = std > 0.1
+        print('active latent', selected_dim.sum(), std)
+        dict_log = {}
+
+        self.log_dict(dict_log)
+        model.cpu()
+        model.train()
+        model.cuda()
+
+    def on_fit_end(self) -> None:
+        model = self.ae
+        model.cpu()
+        model.eval()
+        log = self.visualize_model(model)
+        if self.ae.num_latent > 1:
+            log.update(self.compute_mig(model))
+        wandb.log(log)
+
+
+# 2. Train beta-VAE from the configuration at model.gin.
+bindings = ["mig.num_train=5000",
+            "train.model=@vae",
+            "train.training_steps = 20000"] + [i[2:] for i in unknown]
+gin.parse_config_files_and_bindings(["model.gin"], bindings, skip_unknown=True)
+
+logger = WandbLogger(project='dlib', tags=['beta_MI'])
+print(logger.experiment.url)
+pl_model = AnnealingTest()
+trainer = pl.Trainer(logger,
+                     max_steps=pl_model.training_steps,
+                     checkpoint_callback=False,
+                     progress_bar_refresh_rate=0,
+
+                     gpus=1, )
+
+trainer.fit(pl_model)

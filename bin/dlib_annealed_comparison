@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import os
+
+import torch
+import wandb
+from pytorch_lightning.loggers import WandbLogger
+import pytorch_lightning as pl
+
+from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
+from disentanglement_lib.methods.shared import losses
+from disentanglement_lib.methods.unsupervised import train
+from disentanglement_lib.evaluation import evaluate
+from disentanglement_lib.evaluation.metrics import utils, mig
+from disentanglement_lib.methods.unsupervised.model import BaseVAE, compute_gaussian_kl, gaussian_log_density
+from disentanglement_lib.postprocessing import postprocess
+from disentanglement_lib.utils import aggregate_results
+import gin
+import argparse
+
+parser = argparse.ArgumentParser()
+
+args, unknown = parser.parse_known_args()
+
+
+@gin.configurable("cascade")
+class Cascade(BaseVAE):
+    def __init__(self, input_shape, ):
+        super().__init__(input_shape)
+        self.betas = [70, 30, 12, 1]
+        self.total_steps = gin.query_parameter('train.training_steps')
+        wandb.config['betas'] = self.betas
+
+    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
+        beta = self.betas[min(3, self.stage)]
+        self.summary['beta'] = beta
+        return beta * (kl.sum())
+
+
+class AnnealingTest(train.Train):
+    def evaluate(self) -> None:
+        dataset_loader = self.train_dataloader()
+        model = self.ae
+        model.eval()
+        self.save_model(f"_{self.global_step}.pt")
+        log = self.estimate_decomposition(model, dataset_loader)
+        model.cpu()
+        log.update(self.compute_mig(model))
+        wandb.log(log)
+        model.train()
+        model.cuda()
+
+    def on_fit_end(self) -> None:
+        # self.evaluate()
+        model = self.ae
+        model.cpu()
+        model.eval()
+        log = self.visualize_model(model)
+        wandb.log(log)
+
+
+if __name__ == '__main__':
+    # 2. Train beta-VAE from the configuration at model.gin.
+    bindings = ['mig.num_train=10000'] + [i[2:] for i in unknown]
+    study = UnsupervisedStudyV1()
+    _, share_conf = study.get_model_config()
+    gin.parse_config_files_and_bindings([share_conf], bindings, skip_unknown=True)
+
+    logger = WandbLogger(project='dlib', tags=['anneal'])
+    print(logger.experiment.url)
+    pl_model = AnnealingTest(eval_numbers=20)
+    trainer = pl.Trainer(logger,
+                         max_steps=pl_model.training_steps,
+                         checkpoint_callback=False,
+                         progress_bar_refresh_rate=0,
+                         gpus=1)
+
+    trainer.fit(pl_model)

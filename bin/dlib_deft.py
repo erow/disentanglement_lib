@@ -11,7 +11,7 @@ import shutil
 import torch
 
 from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
-from disentanglement_lib.methods.unsupervised import train
+from disentanglement_lib.methods.unsupervised import train, model
 from disentanglement_lib.evaluation import evaluate
 import gin
 
@@ -19,7 +19,11 @@ study = UnsupervisedStudyV1()
 
 parser = argparse.ArgumentParser(add_help=True)
 parser.add_argument('--output', default='output', help="Output path.")
-parser.add_argument('--tag', help="tag of this run on wandb")
+parser.add_argument('--dataset', choices=[
+    "dsprites_full", "color_dsprites", "noisy_dsprites",
+    "dsprites_noshape",
+    "scream_dsprites", "smallnorb", "cars3d", "shapes3d"
+], default="dsprites_noshape")
 parser.add_argument('--overwrite', default=True, type=bool)
 
 if __name__ == '__main__':
@@ -33,7 +37,10 @@ if __name__ == '__main__':
             raise FileExistsError(path)
     pathlib.Path(path).mkdir(parents=True)
 
-    gin_bindings = [i[2:] for i in unknown]
+    gin_bindings = [
+                       f"dataset.name='{args.dataset}'",
+                       "mig.num_train=10000"
+                   ] + [i[2:] for i in unknown]
     _, share_conf = study.get_model_config()
     train.train_with_gin(os.path.join(path, "model"), overwrite, [share_conf],
                          gin_bindings=gin_bindings)

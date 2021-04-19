@@ -21,8 +21,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import gin
+from pytorch_lightning.metrics.functional import ssim
 
-
+epsilon = 1e-3
 @gin.configurable("bernoulli_loss", allowlist=["subtract_true_image_entropy"])
 def bernoulli_loss(true_images,
                    reconstructed_images,
@@ -37,7 +38,7 @@ def bernoulli_loss(true_images,
     # the lower bound in the xent is the entropy of the true images.？
     if subtract_true_image_entropy:
         dist = torch.distributions.Bernoulli(
-            probs=torch.clamp(true_images, 1e-6, 1 - 1e-6))
+            probs=torch.clamp(true_images, epsilon, 1 - epsilon))
 
         loss_lower_bound = dist.entropy().sum(1)
     else:
@@ -49,7 +50,7 @@ def bernoulli_loss(true_images,
                                                   reduction="none").sum(1)
     elif activation == "tanh":
         reconstructed_images = torch.clamp(
-            F.tanh(reconstructed_images) / 2 + 0.5, 1e-6, 1 - 1e-6)
+            F.tanh(reconstructed_images) / 2 + 0.5, epsilon, 1 - epsilon)
         loss = -torch.sum(
             true_images * torch.log(reconstructed_images) +
             (1 - true_images) * torch.log(1 - reconstructed_images),
@@ -59,6 +60,19 @@ def bernoulli_loss(true_images,
 
     return loss - loss_lower_bound
 
+
+@gin.configurable("ssim_loss", allowlist=[])
+def ssim_loss(true_images, reconstructed_images, activation):
+    """Computes the l2 loss."""
+    if activation == "logits":
+        return ssim(true_images, torch.sigmoid(reconstructed_images),
+                    reduction='none').sum([1, 2, 3])
+    elif activation == "tanh":
+        reconstructed_images = torch.tanh(reconstructed_images) / 2 + 0.5
+        return torch.sum(
+            ssim(true_images, reconstructed_images, reduction='none'), [1, 2, 3])
+    else:
+        raise NotImplementedError("Activation not supported.")
 
 @gin.configurable("l2_loss", allowlist=[])
 def l2_loss(true_images, reconstructed_images, activation):

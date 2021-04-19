@@ -1,5 +1,0 @@
-# coding=utf-8
-
-evaluation.evaluation_fn = @action
-dataset.name="auto"
-evaluation.random_seed = 0

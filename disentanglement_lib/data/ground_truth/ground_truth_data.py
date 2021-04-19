@@ -22,8 +22,8 @@ import numpy as np
 
 class GroundTruthData(object):
     """Abstract class for data sets that are two-step generative models."""
-    tf_format: False
-
+    tf_format = False
+    supervision = True
     @property
     def num_factors(self):
         raise NotImplementedError()
@@ -71,7 +71,7 @@ class GroundTruthData(object):
     def __getitem__(self, item):
         factors = self.latent_factor(item)
         observations = self.sample_observations_from_factors(factors, np.random.RandomState())
-        return observations.transpose((0, 3, 1, 2))[0], factors[0]
+        return observations.transpose((0, 3, 1, 2))[0].astype(np.float32), factors[0]
 
 def sample_factor(ds:GroundTruthData):
     factor = np.array([np.random.randint(i) for i in ds.factors_num_values])

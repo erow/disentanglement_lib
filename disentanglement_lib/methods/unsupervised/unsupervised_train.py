@@ -23,12 +23,13 @@ import time
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
+from disentanglement_lib.methods.shared import losses
 from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.methods.unsupervised import model  # pylint: disable=unused-import
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
+from disentanglement_lib.methods.unsupervised.model import gaussian_log_density
 from disentanglement_lib.utils import results
 from disentanglement_lib.evaluation.metrics import mig
-from disentanglement_lib.methods.shared import losses
 
 import numpy as np
 from argparse import ArgumentParser
@@ -43,21 +44,35 @@ import pathlib, shutil
 import wandb
 
 from disentanglement_lib.utils.hub import convert_model
+from disentanglement_lib.utils.mi_estimators import estimate_entropies
 from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
-
-gin.enter_interactive_mode()
 
 
 @gin.configurable("train", blacklist=[])
 class Train(pl.LightningModule):
+    """Trains the estimator and exports the snapshot and the gin config.
+
+        The use of this function requires the gin binding 'dataset.name' to be
+        specified as that determines the data set used for training.
+
+        Args:
+          model: GaussianEncoderModel that should be trained and exported.
+          training_steps: Integer with number of training steps.
+          random_seed: Integer with random seed used for training.
+          batch_size: Integer with the batch size.
+          name: Optional string with name of the model (can be used to name models).
+          model_num: Optional integer with model number (can be used to identify
+            models).
+    """
+
     def __init__(self,
-                 data,
                  model=gin.REQUIRED,
                  training_steps=gin.REQUIRED,
                  random_seed=gin.REQUIRED,
                  batch_size=gin.REQUIRED,
                  opt_name=torch.optim.Adam,
-                 lr=1e-4,
+                 lr=5e-4,
+                 eval_numbers=10,
                  name="",
                  model_num=None):
         super().__init__()
@@ -67,19 +82,20 @@ class Train(pl.LightningModule):
         self.lr = lr
         self.name = name
         self.model_num = model_num
+        self.eval_numbers = eval_numbers
+        wandb.config['dataset'] = gin.query_parameter('dataset.name')
         self.save_hyperparameters()
         self.opt_name = opt_name
-
-        self.data = data
+        self.data = named_data.get_named_ground_truth_data()
         img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
+        # img_shape = [1,64,64]
         self.ae = model(img_shape)
 
     def training_step(self, batch, batch_idx):
-        if (self.global_step + 1) % (self.training_steps // 10) == 0:
+        if (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
             self.evaluate()
-        x, y = batch
-        self.ae.alpha = self.global_step / self.training_steps
-        loss, summary = self.ae.model_fn(x, y)
+        x = batch
+        loss, summary = self.ae.model_fn(x.float(), None)
         self.log_dict(summary)
         return loss
 
@@ -87,46 +103,18 @@ class Train(pl.LightningModule):
         model = self.ae
         model.cpu()
         model.eval()
-        self.visualize_model(model)
-        self.compute_mig(model)
-        self.gradient_test(model)
+        dic_log = {}
+        dic_log.update(self.visualize_model(model))
+        wandb.log(dic_log)
         model.cuda()
         model.train()
 
-    def compute_mig(self, model):
-        _encoder, _decoder = convert_model(model)
-        result = mig.compute_mig(self.data, lambda x: _encoder(x)[0], np.random.RandomState(), )
-        self.log_dict(result)
-
-    def visualize_model(self, model) -> None:
+    def visualize_model(self, model) -> dict:
         _encoder, _decoder = convert_model(model)
         latent_dim = self.ae.num_latent
         mu = torch.zeros(1, latent_dim)
         fig = plt_sample_traversal(mu, _decoder, 8, range(latent_dim), 2)
-        wandb.log({'traversal': wandb.Image(fig)})
-
-    def gradient_test(self, model):
-        dataset = self.data
-        for i in range(dataset.num_factors):
-            subset = []
-            for _ in range(256 // dataset.factors_num_values[i]):
-                factor = sample_factor(dataset)
-                obs = action(dataset, factor, 0)
-                subset.append(obs)
-            subset = np.concatenate(subset).transpose([0, 3, 1, 2])
-            subset = torch.FloatTensor(subset)
-            mu, logvar = model.encode(subset)
-
-            z = mu.detach().clone().requires_grad_(True)
-            recons = model.decode(z)
-            per_sample_loss = losses.make_reconstruction_loss(subset, recons)
-            reconstruction_loss = torch.mean(per_sample_loss)
-            reconstruction_loss.backward()
-            grad = z.grad
-            log = {}
-            for j in range(grad.size(1)):
-                log[f'grad_{i}/{j}'] = wandb.Histogram(grad[:, j].cpu())  # np_histogram=hist)
-            wandb.log(log)
+        return {'traversal': wandb.Image(fig)}
 
     def train_dataloader(self) -> DataLoader:
         dl = DataLoader(self.data,
@@ -140,28 +128,9 @@ class Train(pl.LightningModule):
         optimizer = self.opt_name(self.parameters(), lr=self.lr)
         return optimizer
 
-
-import gin
-
-gin_bindings = ['']
-gin.clear_config()
-gin.parse_config_files_and_bindings(['../examples/model.gin'], gin_bindings, False, skip_unknown=True)
-
-if __name__ == '__main__':
-    from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
-
-    study = UnsupervisedStudyV1()
-    from disentanglement_lib.data.ground_truth import dsprites
-
-    dataset = dsprites.DSprites([1, 2, 3, 4])
-    from pytorch_lightning.loggers import WandbLogger
-
-    logger = WandbLogger(project='dlib', tags=['v5'])
-    print(logger.experiment.url)
-    pl_model = Train(dataset, model.FVAE, )
-    trainer = pl.Trainer(logger,
-                         max_steps=pl_model.training_steps,
-                         checkpoint_callback=False,
-                         gpus=1)
-
-    trainer.fit(pl_model)
+    def save_model(self, file):
+        dir = '/tmp/models/' + str(np.random.randint(99999))
+        file_path = os.path.join(dir, file)
+        pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+        torch.save(self.ae.state_dict(), file_path)
+        wandb.save(file_path, base_path=dir)

@@ -4,21 +4,15 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('s', type=int, default=0)
+parser.add_argument('e', type=int, default=0)
 args = parser.parse_args()
 
-seed = h.sweep('seed', h.discrete(range(args.s, args.s + 2)))
-a = h.sweep('a', h.discrete([2]))
-lam = h.sweep('lam', h.discrete([0, 1e-3, 1]))
+seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
+model = h.sweep('train.model', h.discrete(['@vae', '@beta_tc_vae', '@cascade_vae_c']))
+dataset = h.sweep('dataset', h.discrete(['dsprites_full', 'smallnorb', 'dsprites_noshape', 'color_dsprites']))
+runs = h.product([seed, model, dataset])
 
-model = [
-    {'model': 'cascade_vae_c'},
-    {'model': 'beta_tc_vae'},
-    {'model': 'beta_vae'}
-]
-
-runs = h.product([seed, a, lam, model])
 general_config = {
-    "dataset": "dsprites_tiny"
 }
 
 print(len(runs))

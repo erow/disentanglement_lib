@@ -26,6 +26,8 @@ from disentanglement_lib.data.ground_truth import shapes3d
 from disentanglement_lib.data.ground_truth import translation
 import gin
 
+from disentanglement_lib.data.unsupervised.chais import Chairs
+
 
 @gin.configurable("dataset")
 def get_named_ground_truth_data(name="auto"):
@@ -43,7 +45,7 @@ def get_named_ground_truth_data(name="auto"):
     elif name == "dsprites_noshape":
         return dsprites.DSprites([2, 3, 4, 5])
     elif name == "dsprites_tiny":
-        return dsprites.DSprites([1, 2, 3, 4])
+        return dsprites.DSprites([2, 3, 4])
     elif name == "color_dsprites":
         return dsprites.ColorDSprites([1, 2, 3, 4, 5])
     elif name == "noisy_dsprites":
@@ -66,5 +68,7 @@ def get_named_ground_truth_data(name="auto"):
         return dummy_data.DummyData()
     elif name == "translation":
         return translation.Translation()
+    elif name == "chairs":
+        return Chairs()
     else:
         raise ValueError("Invalid data set name.")

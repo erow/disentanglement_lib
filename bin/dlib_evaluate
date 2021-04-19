@@ -24,11 +24,10 @@ from absl import flags
 import glob
 from disentanglement_lib.evaluation import evaluate
 
-
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("input_dir", None, "Directory to take trained "
-                    "representation from.")
+                                       "representation from.")
 flags.DEFINE_string("output_dir", 'evaluation', "Directory to save scores to.")
 flags.DEFINE_multi_string("gin_config", None,
                           "List of paths to the config files.")
@@ -41,24 +40,24 @@ flags.DEFINE_boolean("overwrite", False,
 
 
 def main(unused_argv):
-  # We either allow multiple scores to be computed via the
-  # gin_evaluation_config_glob flag or a single score via the gin_config and
-  # gin_bindings flags.
-  if FLAGS.gin_evaluation_config_glob is not None:
-      for gin_eval_config in sorted(glob.glob(FLAGS.gin_evaluation_config_glob)):
-      metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
-      metric_dir = os.path.join(FLAGS.output_dir, metric_name)
-      gin_config_files = [gin_eval_config]
-      gin_bindings = [
-          "evaluation.name = '{}'".format(metric_name)
-      ]
-      evaluate.evaluate_with_gin(FLAGS.input_dir, metric_dir, FLAGS.overwrite,
-                                 gin_config_files, gin_bindings)
-  else:
-    evaluate.evaluate_with_gin(FLAGS.input_dir, FLAGS.output_dir,
-                               FLAGS.overwrite, FLAGS.gin_config,
-                               FLAGS.gin_bindings)
+    # We either allow multiple scores to be computed via the
+    # gin_evaluation_config_glob flag or a single score via the gin_config and
+    # gin_bindings flags.
+    if FLAGS.gin_evaluation_config_glob is not None:
+        for gin_eval_config in sorted(glob.glob(FLAGS.gin_evaluation_config_glob)):
+            metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
+            metric_dir = os.path.join(FLAGS.output_dir, metric_name)
+            gin_config_files = [gin_eval_config]
+            gin_bindings = [
+                "evaluation.name = '{}'".format(metric_name)
+            ]
+            evaluate.evaluate_with_gin(FLAGS.input_dir, metric_dir, FLAGS.overwrite,
+                                       gin_config_files, gin_bindings)
+    else:
+        evaluate.evaluate_with_gin(FLAGS.input_dir, FLAGS.output_dir,
+                                   FLAGS.overwrite, FLAGS.gin_config,
+                                   FLAGS.gin_bindings)
 
 
 if __name__ == "__main__":
-  app.run(main)
+    app.run(main)
