@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @sap_score
-dataset.name="auto"
+
 evaluation.random_seed = 0
 sap_score.num_train=10000
 sap_score.num_test=5000

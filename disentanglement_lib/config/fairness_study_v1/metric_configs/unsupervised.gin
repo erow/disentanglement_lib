@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @unsupervised_metrics
-dataset.name="auto"
+
 evaluation.random_seed = 0
 unsupervised_metrics.num_train=10000
 discretizer.discretizer_fn = @histogram_discretizer

@@ -67,7 +67,7 @@ def plot_bar(axes, images, label=None):
         if len(img.shape) == 2:
             ax.imshow(img)
         elif img.shape[2] == 1:
-            ax.imshow(img.squeeze(2))
+            ax.imshow(img.squeeze(2), cmap='gray')
         ax.axis('off')
 
     if label:

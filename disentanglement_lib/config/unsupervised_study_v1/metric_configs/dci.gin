@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @dci
-dataset.name="auto"
+
 evaluation.random_seed = 0
 dci.num_train=10000
 dci.num_test=5000

@@ -1,0 +1,8 @@
+evaluation.evaluation_fn = @udr_sklearn
+evaluation.random_seed = 0
+udr_sklearn.batch_size=10
+udr_sklearn.num_data_points=1000
+udr_sklearn.correlation_matrix="lasso"
+udr_sklearn.filter_low_kl=True
+udr_sklearn.include_raw_correlations=True
+udr_sklearn.kl_filter_threshold = 0.01

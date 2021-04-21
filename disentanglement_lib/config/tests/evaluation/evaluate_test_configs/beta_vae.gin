@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @beta_vae_sklearn
-dataset.name="auto"
+
 evaluation.random_seed = 0
 beta_vae_sklearn.batch_size=10
 beta_vae_sklearn.num_train=100

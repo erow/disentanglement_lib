@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @udr_sklearn
-dataset.name="auto"
+
 evaluation.random_seed = 0
 udr_sklearn.batch_size=10
 udr_sklearn.num_data_points=1000

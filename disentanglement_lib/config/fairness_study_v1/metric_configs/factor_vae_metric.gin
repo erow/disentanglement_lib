@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @factor_vae_score
-dataset.name="auto"
+
 evaluation.random_seed = 0
 factor_vae_score.num_variance_estimate=10000
 factor_vae_score.num_train=10000

@@ -9,14 +9,17 @@ parser.add_argument('--skip', type=int, default=0)
 args = parser.parse_args()
 
 seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
-a = h.sweep('model.alpha', h.discrete([2]))
-shared = h.sweep('model.shared', h.discrete([True, False]))
-lam = h.sweep('model.lam', h.discrete([1e-2, 1]))
-model = h.sweep('train.model', h.discrete(['@beta_tc_vae', '@vae', '@cascade_vae_c']))
+model = h.sweep('vae.beta', h.discrete([4, 12, 30, 70]))
+dataset = [
+    {
+        # 'dataset.name':"\"'dsprites_full'\"",
+        'train.model': '@vae'},
+]
+runs = h.product([seed, model, dataset])
 
-runs = h.product([seed, shared, a, lam, model])
 general_config = {
-    "dataset": "dsprites_full"
+    'train.eval_numbers': 1,
+    'train.training_steps': 40000,
 }
 
 print(len(runs))
@@ -25,7 +28,7 @@ for i, run_args in enumerate(runs):
     run_args.update(general_config)
     args_str = " ".join([f"--{k}={v}" for k, v in run_args.items()])
     print(args_str, f"{100 * i // len(runs)}%")
-
-    # ret = os.system("dlib_run.py " + args_str)
-    # if ret != 0:
-    #     exit(ret)
+    # print(args_str)
+    ret = os.system("dlib_run " + args_str)
+    if ret != 0:
+        exit(ret)

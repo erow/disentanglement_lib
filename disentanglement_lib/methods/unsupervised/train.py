@@ -72,10 +72,13 @@ class Train(pl.LightningModule):
                  batch_size=gin.REQUIRED,
                  opt_name=torch.optim.Adam,
                  lr=5e-4,
-                 eval_numbers=10,
+                 eval_numbers=1,
                  name="",
-                 model_num=None):
+                 model_num=None,
+                 data_fun=named_data.get_named_ground_truth_data,
+                 dir=None):
         super().__init__()
+        self.dir = '/tmp/models/' + str(np.random.randint(99999)) if dir is None else dir
         self.training_steps = training_steps
         self.random_seed = random_seed
         self.batch_size = batch_size
@@ -86,13 +89,14 @@ class Train(pl.LightningModule):
         wandb.config['dataset'] = gin.query_parameter('dataset.name')
         self.save_hyperparameters()
         self.opt_name = opt_name
-        self.data = named_data.get_named_ground_truth_data()
+        self.data = data_fun()
         img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
         # img_shape = [1,64,64]
         self.ae = model(img_shape)
 
     def training_step(self, batch, batch_idx):
-        if (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
+        if self.eval_numbers > 0 and \
+                (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
             self.evaluate()
         if self.data.supervision:
             x, y = batch
@@ -102,32 +106,6 @@ class Train(pl.LightningModule):
             loss, summary = self.ae.model_fn(x.float(), None)
         self.log_dict(summary)
         return loss
-
-    def evaluate(self) -> None:
-        model = self.ae
-        model.cpu()
-        model.eval()
-        dic_log = {}
-        dic_log.update(self.visualize_model(model))
-        dic_log.update(self.compute_mig(model))
-
-        wandb.log(dic_log)
-        model.cuda()
-        model.train()
-
-    def compute_mig(self, model, device='cpu') -> dict:
-        if self.data.supervision == False:
-            return {}
-        _encoder, _decoder = convert_model(model, device=device)
-        result = mig.compute_mig(self.data, lambda x: _encoder(x)[0], np.random.RandomState(), )
-        return result
-
-    def visualize_model(self, model) -> dict:
-        _encoder, _decoder = convert_model(model)
-        latent_dim = self.ae.num_latent
-        mu = torch.zeros(1, latent_dim)
-        fig = plt_sample_traversal(mu, _decoder, 8, range(latent_dim), 2)
-        return {'traversal': wandb.Image(fig)}
 
     def train_dataloader(self) -> DataLoader:
         dl = DataLoader(self.data,
@@ -142,13 +120,19 @@ class Train(pl.LightningModule):
         return optimizer
 
     def save_model(self, file):
-        dir = '/tmp/models/' + str(np.random.randint(99999))
+        dir = str(self.dir)
         file_path = os.path.join(dir, file)
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
         torch.save(self.ae.state_dict(), file_path)
         wandb.save(file_path, base_path=dir)
 
     def estimate_decomposition(self, model, dataset_loader):
+        """
+        reference: https://github.com/rtqichen/beta-tcvae/blob/master/elbo_decomposition.py
+        :param model:
+        :param dataset_loader:
+        :return: dict(): TC, MI, DWKL
+        """
         N = len(dataset_loader.dataset)  # number of data samples
         K = model.num_latent  # number of latent variables
         S = 1  # number of latent variable samples
@@ -210,6 +194,31 @@ class Train(pl.LightningModule):
                    H_q_z=H_qz)
         return log
 
+    def evaluate(self) -> None:
+        self.save_model(f"model_{self.global_step}.pt")
+        model = self.ae
+        model.eval()
+        dic_log = self.estimate_decomposition(model, self.train_dataloader())
+        model.cpu()
+        dic_log.update(self.visualize_model(model))
+        dic_log.update(self.compute_mig(model))
+        wandb.log(dic_log)
+        model.cuda()
+        model.train()
+
+    def compute_mig(self, model, device='cpu') -> dict:
+        if self.data.supervision == False:
+            return {}
+        _encoder, _decoder = convert_model(model, device=device)
+        result = mig.compute_mig(self.data, lambda x: _encoder(x)[0], np.random.RandomState(), )
+        return result
+
+    def visualize_model(self, model) -> dict:
+        _encoder, _decoder = convert_model(model)
+        latent_dim = self.ae.num_latent
+        mu = torch.zeros(1, latent_dim)
+        fig = plt_sample_traversal(mu, _decoder, 8, range(latent_dim), 2)
+        return {'traversal': wandb.Image(fig)}
 
 
 
@@ -250,7 +259,7 @@ def train_with_gin(model_dir,
     gpus = torch.cuda.device_count()
     print(logger.experiment.url)
     logger.experiment.save(model.__file__, os.path.dirname(model.__file__))
-    pl_model = Train()
+    pl_model = Train(dir=model_path)
     if gpus > 0:
         trainer = pl.Trainer(logger,
                              progress_bar_refresh_rate=0,  # disable progress bar

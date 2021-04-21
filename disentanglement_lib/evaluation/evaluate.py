@@ -41,6 +41,7 @@ from disentanglement_lib.evaluation.metrics import sap_score  # pylint: disable=
 from disentanglement_lib.evaluation.metrics import strong_downstream_task  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
+from disentanglement_lib.evaluation.metrics import udr
 from disentanglement_lib.evaluation.representation_fn import mean_representation
 from disentanglement_lib.methods.unsupervised.train import Train
 from disentanglement_lib.postprocessing.convert_representation import concat_representation
@@ -73,7 +74,8 @@ def evaluate_with_gin(model_dir,
         gin_config_files = []
     if gin_bindings is None:
         gin_bindings = []
-    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings,
+                                        skip_unknown=True)
     evaluate(model_dir, output_dir, overwrite)
     gin.clear_config()
 

@@ -9,19 +9,14 @@ parser.add_argument('--skip', type=int, default=0)
 args = parser.parse_args()
 
 seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
-# model = h.sweep('train.model', h.discrete(['@vae', '@beta_tc_vae', '@cascade_vae_c']))
-# model = [{'train.model': '@deft',
-#           'model.stage_steps': 15000}]
-
-model = [{'train.model': '@annealed_vae'}, ]
-
-dataset = [
-    {'dataset.name': "\"'dsprites_full'\"", 'deft.betas': '[70,30,12,4]'},
-    {'dataset.name': "\"'color_dsprites'\"", 'deft.betas': '[160,105,30,4]'},
-    {'dataset.name': "\"'scream_dsprites'\""},
-    {'dataset.name': "\"'smallnorb'\"", 'deft.betas': '[30,5,3,1]'},
-]
-runs = h.product([seed, model, dataset])
+model = h.sweep('train.model', h.discrete(['@vae', '@beta_tc_vae']))
+model = model + [{'train.model': '@deft', 'deft.betas': [20, 2], 'model.stage_steps': 3000},
+                 {'train.model': '@cascade_vae_c', 'model.stage_steps': 2000},
+                 {'train.model': '@annealed_vae', 'annealed_vae.c_max': 10,
+                  'annealed_vae.iteration_threshold': 7000,
+                  'annealed_vae.gamma': 100}
+                 ]
+runs = h.product([seed, model])
 
 general_config = {
     'train.eval_numbers': 1
@@ -34,7 +29,7 @@ for i, run_args in enumerate(runs):
     args_str = " ".join([f"--{k}={v}" for k, v in run_args.items()])
     args_str += metrics
     print(args_str, f"{100 * i // len(runs)}%")
-    # print(args_str)
-    ret = os.system("dlib_run " + args_str)
+
+    ret = os.system("python experiments/Correlation.py " + args_str)
     if ret != 0:
         exit(ret)

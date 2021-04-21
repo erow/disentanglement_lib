@@ -657,17 +657,22 @@ class Annealing(BaseVAE):
 class DEFT(BaseVAE):
     def __init__(self, input_shape,
                  betas=gin.REQUIRED,
+                 group_size=2,
                  gamma=0.1):
         super().__init__(input_shape)
         self.betas = betas
         self.gamma = gamma
+        self.group_size = group_size
 
     def z_hook(self, grad):
-        grad[:, :self.stage + 1] *= self.gamma
+        grad[:, :self.stage * self.group_size] *= self.gamma
+        grad[:, self.group_size * (self.stage + 1):] = 0
         return grad
 
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
-        beta = self.betas[min(self.stage, len(self.betas))]
+        beta = self.betas[min(self.stage, len(self.betas) - 1)]
         self.summary['beta'] = beta
-        z_sampled.register_hook(self.z_hook)
+        # z_sampled.register_hook(self.z_hook)
+        z_mean.register_hook(self.z_hook)
+        z_logvar.register_hook(self.z_hook)
         return beta * (kl.sum())

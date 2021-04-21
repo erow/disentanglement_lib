@@ -19,11 +19,12 @@ study = UnsupervisedStudyV1()
 
 parser = argparse.ArgumentParser(add_help=True)
 parser.add_argument('--output', default='output', help="Output path.")
-parser.add_argument('--tag', help="tag of this run on wandb")
+parser.add_argument('--metrics', nargs='+', default=[])
 parser.add_argument('--overwrite', default=True, type=bool)
 
 if __name__ == '__main__':
     args, unknown = parser.parse_known_args()
+    print(args)
     path = args.output
     overwrite = args.overwrite
     if pathlib.Path(path).exists():
@@ -39,14 +40,16 @@ if __name__ == '__main__':
                          gin_bindings=gin_bindings)
 
     # 3. Extract the mean representation for both of these models.
-    representation_path = os.path.join(path, "representation")
-    model_path = os.path.join(path, "model")
+    # representation_path = os.path.join(path, "representation")
     # postprocess.postprocess(model_path, representation_path, overwrite)
+
+    model_path = os.path.join(path, "model")
     confs = study.get_eval_config_files()
-    confs = [confs[i] for i in [4, 7]]
-    print(confs)
+
     for metric_conf in confs:
         metric = metric_conf.split('/')[-1][:-4]
-        result_path = os.path.join(path, "metrics", metric)
-        evaluate.evaluate_with_gin(
-            model_path, result_path, overwrite, [metric_conf, share_conf], gin_bindings)
+        if metric in args.metrics:
+            print(metric)
+            result_path = os.path.join(path, "metrics", metric)
+            evaluate.evaluate_with_gin(
+                model_path, result_path, overwrite, [metric_conf, share_conf], gin_bindings)

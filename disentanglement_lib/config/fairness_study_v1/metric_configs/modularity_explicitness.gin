@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @modularity_explicitness
-dataset.name="auto"
+
 evaluation.random_seed = 0
 modularity_explicitness.num_train=10000
 modularity_explicitness.num_test=5000

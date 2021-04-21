@@ -14,7 +14,7 @@
 # limitations under the License.
 
 evaluation.evaluation_fn = @fairness
-dataset.name="auto"
+
 evaluation.random_seed = 0
 fairness.num_train=10000
 fairness.num_test_points_per_class=100

@@ -75,6 +75,14 @@ class UnsupervisedData(abc.ABC):
             self.download()
             self.logger.info("Finished Downloading.")
 
+    def sample_observations(self, batch_size, random_state: np.random.RandomState):
+        indices = random_state.randint(len(self), size=(batch_size,))
+        imgs = []
+        for i in indices:
+            imgs.append(self[i][0].numpy())
+
+        return np.array(imgs).reshape([-1, 64, 64, 1])
+
     @property
     def observation_shape(self):
         raise NotImplementedError()
