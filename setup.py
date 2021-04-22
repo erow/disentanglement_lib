@@ -55,7 +55,6 @@ setup(
         'scipy>=1.0.0',
         'seaborn',
         'torch',
-        'python-opencv',
         'absl-py',
         'pytorch_lightning',
         'h5py'
