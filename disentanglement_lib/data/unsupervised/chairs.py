@@ -45,22 +45,24 @@ class Chairs(datasets.ImageFolder, UnsupervisedData):
     def __init__(self,
                  root='/data/disentanglement',
                  logger=logging.getLogger(__name__)):
+        self.root = root
         self.train_data = os.path.join(root, 'chairs', type(self).files["train"])
         self.transforms = transforms.Compose([transforms.Grayscale(),
                                               transforms.ToTensor()])
         self.logger = logger
 
-        if not os.path.isdir(self.root):
+        if not os.path.isdir(self.train_data):
             self.logger.info("Downloading {} ...".format(str(type(self))))
             self.download()
             self.logger.info("Finished Downloading.")
+
         datasets.ImageFolder.__init__(self, self.train_data, transform=self.transforms)
         UnsupervisedData.__init__(self)
 
     def download(self):
         """Download the dataset."""
         save_path = os.path.join(self.root, 'chairs.tar')
-        os.makedirs(self.root)
+        os.makedirs(self.train_data)
         subprocess.check_call(["curl", type(self).urls["train"],
                                "--output", save_path])
 
