@@ -31,5 +31,5 @@ for i, run_args in enumerate(runs):
     print(args_str, f"{100 * i // len(runs)}%")
 
     ret = os.system("python experiments/Correlation.py " + args_str)
-    if ret != 0:
-        exit(ret)
+    # if ret != 0:
+    #     exit(ret)
