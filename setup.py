@@ -39,6 +39,7 @@ setup(
         'bin/dlib_visualize_model',
         'bin/dlib_tests',
         'bin/dlib_download_data',
+        'bin.dlib_run'
     ],
     install_requires=[
         'future',
@@ -55,6 +56,8 @@ setup(
         'scipy>=1.0.0',
         'seaborn',
         'torch',
+        'wandb',
+        'opencv-python',
         'absl-py',
         'pytorch_lightning',
         'h5py'
@@ -68,5 +71,5 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
-    keywords='tensorflow machine learning disentanglement learning',
+    keywords='pytorch machine learning disentanglement learning',
 )

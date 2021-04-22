@@ -639,7 +639,7 @@ class CascadeVAECReg1(CascadeVAECReg):
         return reg / pow(self.alpha, len(self.betas))
 
 
-@gin.configurable("annealed")
+@gin.configurable("annealing")
 class Annealing(BaseVAE):
     def __init__(self, input_shape, beta_h=80):
         super().__init__(input_shape)
@@ -670,7 +670,8 @@ class DEFT(BaseVAE):
         return grad
 
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
-        beta = self.betas[min(self.stage, len(self.betas) - 1)]
+        self.stage = min(self.stage, len(self.betas) - 1)
+        beta = self.betas[self.stage]
         self.summary['beta'] = beta
         # z_sampled.register_hook(self.z_hook)
         z_mean.register_hook(self.z_hook)

@@ -117,7 +117,7 @@ if __name__ == "__main__":
     dataset = dsprites.DSprites([3])
     dl = DataLoader(dataset, batch_size=16)
     bindings = ['mig.num_train=10000',
-                'train.model=@annealed',
+                'train.model=@annealing',
                 'annealed.beta_h=40',
                 'train.training_steps=30000'] + [i[2:] for i in unknown]
     study = UnsupervisedStudyV1()

@@ -26,6 +26,7 @@ from disentanglement_lib.data.ground_truth import shapes3d
 from disentanglement_lib.data.ground_truth import translation
 import gin
 
+from disentanglement_lib.data.ground_truth.correlation import Correlation
 from disentanglement_lib.data.unsupervised.chairs import Chairs
 
 
@@ -70,5 +71,7 @@ def get_named_ground_truth_data(name="auto"):
         return translation.Translation()
     elif name == "chairs":
         return Chairs()
+    elif name == 'correlation':
+        return Correlation()
     else:
         raise ValueError("Invalid data set name.")

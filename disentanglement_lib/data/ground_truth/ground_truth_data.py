@@ -85,6 +85,15 @@ def action(ds:GroundTruthData,factor,dim):
     return ds.sample_observations_from_factors(factors, rand_seed)
 
 class RandomAction(object):
+
+    @property
+    def observation_shape(self):
+        return self.data.observation_shape
+
+    @property
+    def supervision(self):
+        return self.data.supervision
+
     def __init__(self, ground_truth_data: GroundTruthData,
                  factor_index,
                  factor_vec=None):

@@ -12,7 +12,9 @@ import numpy as np
 import logging
 from disentanglement_lib.data.unsupervised.unsupervied_data import UnsupervisedData, preprocess
 from torchvision import transforms, datasets
+import gin
 
+gin.configurable('chairs')
 class Chairs(datasets.ImageFolder, UnsupervisedData):
     """Chairs Dataset from [1].
 
