@@ -26,7 +26,7 @@ from disentanglement_lib.data.ground_truth import shapes3d
 from disentanglement_lib.data.ground_truth import translation
 import gin
 
-from disentanglement_lib.data.unsupervised.chais import Chairs
+from disentanglement_lib.data.unsupervised.chairs import Chairs
 
 
 @gin.configurable("dataset")
