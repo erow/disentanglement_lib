@@ -9,9 +9,10 @@ parser.add_argument('--skip', type=int, default=0)
 args = parser.parse_args()
 
 seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
-model = h.sweep('train.model', h.discrete(['@beta_tc_vae', '@cascade_vae_c']))
+model = h.sweep('train.model', h.discrete(['@beta_tc_vae']))
 model += [{'train.model': '@deft', 'model.stage_steps': 3000, 'deft.betas': "'[20, 1]'"}]
-runs = h.product([seed, ])
+model += [{'train.model': '@cascade_vae_c', 'model.stage_steps': 2000, }]
+runs = h.product([seed, model])
 
 general_config = {
     'dataset.name': "\"'correlation'\"",
@@ -28,6 +29,6 @@ for i, run_args in enumerate(runs):
     args_str += metrics
     print(args_str, f"{100 * i // len(runs)}%")
 
-    ret = os.system("python dlib_run " + args_str)
+    ret = os.system("dlib_run " + args_str)
     if ret != 0:
         exit(ret)

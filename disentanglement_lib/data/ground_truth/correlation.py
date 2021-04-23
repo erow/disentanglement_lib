@@ -23,7 +23,7 @@ class Correlation(ground_truth_data.GroundTruthData):
         pos = np.random.randint([32, 32], size=(num, 2))
         p = pos - np.array([[16, 16]])
         theta = np.arctan2(p[:, 1], p[:, 0]) / np.pi * 180 + 180
-        theta_r = np.random.randint(60, size=(num,)) - 30
+        theta_r = np.random.randn(num) * 45
         theta = (theta + theta_r + 360) % 360
         t = np.digitize(theta, self.angles).reshape(-1, 1)
         return np.concatenate([t, pos], 1)

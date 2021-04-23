@@ -10,7 +10,7 @@ args = parser.parse_args()
 
 seed = h.sweep('train.random_seed', h.discrete(range(args.s, args.e)))
 model = h.sweep('train.model', h.discrete(['@vae', '@beta_tc_vae', '@cascade_vae_c']))
-model += [{'train.model': '@deft', 'model.stage_steps': 5000, 'deft.betas': '[60, 40, 1]'}]
+model += [{'train.model': '@deft', 'model.stage_steps': 5000, 'deft.betas': "'[60, 40, 1]'"}]
 model += [{'train.model': '@annealed_vae'}]
 
 dataset = [

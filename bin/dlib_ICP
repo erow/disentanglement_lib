@@ -16,15 +16,15 @@ import pytorch_lightning as pl
 from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
 from disentanglement_lib.methods.unsupervised import train
 from disentanglement_lib.data.ground_truth.ground_truth_data import RandomAction
-from experiments.Correlation import Correlation
+from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
 import gin
 
-study = UnsupervisedStudyV1()
-
-parser = argparse.ArgumentParser(add_help=True)
-parser.add_argument('--factor', default=0)
-
 if __name__ == '__main__':
+    study = UnsupervisedStudyV1()
+
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument('--factor', )
+
     args, unknown = parser.parse_known_args()
 
     gin_bindings = ['train.model=@annealing', ]
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     print(logger.experiment.url)
     wandb.config['factor'] = int(args.factor)
 
-    data = Correlation()
+    data = get_named_ground_truth_data()
     pl_model = train.Train(data_fun=lambda: RandomAction(data, int(args.factor)))
     trainer = pl.Trainer(logger,
                          max_steps=pl_model.training_steps,
