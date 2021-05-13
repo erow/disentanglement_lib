@@ -35,14 +35,14 @@ def _config_generator():
         # Test different activations.
         for act in ["'logits'", "'tanh'"]:
             rec_loss += ["reconstruction_loss.activation = " + act]
-            latent_dim = ["encoder.num_latent = 10"]
+            num_latent = ["encoder.num_latent = 10"]
             # Test different architectures.
             for encoder, decoder in [("@fc_encoder", "@fc_decoder"),
                                      ("@conv_encoder", "@deconv_decoder")]:
                 architectures = \
                     ["encoder.encoder_fn = " + encoder,
                      "decoder.decoder_fn = " + decoder]
-                structure = rec_loss + architectures + latent_dim
+                structure = rec_loss + architectures + num_latent
                 # Train a BetaVAE with all these settings.
                 beta_vae = ["model.model = @vae", "vae.beta = 10."]
                 yield [model_config_path], beta_vae + structure

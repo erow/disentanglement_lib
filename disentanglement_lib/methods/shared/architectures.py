@@ -23,6 +23,7 @@ import os
 import numpy as np
 import torch
 from torch import nn
+from torchvision.models.resnet import BasicBlock
 import gin
 
 
@@ -181,9 +182,6 @@ class deconv_decoder(nn.Module):
             nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
-        # nn.init.kaiming_uniform_(self.net[0].weight, nonlinearity='sigmoid')
-        # nn.init.kaiming_uniform_(self.net[2].weight, nonlinearity='sigmoid')
-        
 
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
@@ -293,37 +291,6 @@ class test_decoder(nn.Module):
         return torch.reshape(x, shape=[-1] + self.output_shape)
 
 
-@gin.configurable("lite_conv_encoder", allowlist=[])
-class lite_conv_encoder(nn.Module):
-    def __init__(self, input_shape, num_latent,
-                 base_channel=8,
-                 groups=4,
-                 active=0):
-        super().__init__()
-        assert num_latent % groups == 0
-        self.num_latent = num_latent
-        self.input_shape = input_shape
-        convs = [conv_encoder(input_shape, num_latent // groups, base_channel) for i in range(groups)]
-        self.convs = nn.Sequential(*convs)
-        for i in range(groups):
-            self.convs[i].activate = i == active
-            if i > active:
-                self.convs[i].requires_grad_(False)
-            # if i == active:
-            #     self.convs[i].requires_grad_(True)
-            # else:
-            #     self.convs[i].requires_grad_(False)
-
-    def forward(self, input_tensor):
-        mean_list, log_var_list = [], []
-        for conv in self.convs:
-            means, log_var = conv(input_tensor)
-            mean_list.append(means)
-            log_var_list.append(log_var)
-
-        return torch.cat(mean_list, 1), torch.cat(log_var_list, 1)
-
-
 class lite_decoder(nn.Module):
     def __init__(self, num_latent, output_shape):
         super().__init__()
@@ -342,3 +309,118 @@ class lite_decoder(nn.Module):
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
         return torch.reshape(x, shape=[-1] + self.output_shape)
+
+
+@gin.configurable("deep_decoder", allowlist=[])
+class DeepConvDecoder(nn.Module):
+	def __init__(self, num_latent, output_shape, width=256):
+		super().__init__()
+		self.output_shape = output_shape
+		self.num_latent = num_latent
+		self.width = width
+
+		def block(in_feat, out_feat, size):
+			layers = [BasicBlock(in_feat, in_feat),
+			          BasicBlock(in_feat, in_feat),
+			          nn.UpsamplingBilinear2d(size),
+			          nn.Conv2d(in_feat, out_feat, kernel_size=(1, 1))]
+			return layers
+
+		self.convert_2d = nn.Sequential(
+			nn.Linear(num_latent, width * 2), nn.LeakyReLU(0.02),
+			nn.Linear(width * 2, 4 * 4 * width),
+		)
+
+		c, h, w = output_shape
+		conv_blocks = []
+
+		ch, cw = 4, 4
+		c_in = width
+		while min(h / ch, w / cw) > 2:
+			conv_blocks += block(c_in, c_in // 2, [ch * 2, cw * 2])
+			c_in = c_in // 2
+			ch, cw = ch * 2, cw * 2
+		conv_blocks += (block(c_in, c_in // 2, [h, w]))  # same size
+		c_in = c_in // 2
+
+		conv_blocks = conv_blocks + [
+			nn.LeakyReLU(0.02),
+			nn.Conv2d(c_in, c, (5, 5), padding=2)
+		]
+		# same channel
+		self.conv = nn.Sequential(*conv_blocks)
+
+	def forward(self, z):
+		img = self.convert_2d(z).view(z.size(0), self.width, 4, 4)
+		img = self.conv(img)
+		return img
+
+
+@gin.configurable("deep_encoder", allowlist=[])
+class DeepConvEncoder(nn.Module):
+	def __init__(self, input_shape, num_latent, width=256):
+		super().__init__()
+		self.input_shape = input_shape
+		self.num_latent = num_latent
+		self.width = width
+
+		def block(in_feat, out_feat, size):
+			layers = [
+				nn.Conv2d(in_feat, out_feat, kernel_size=1),
+				BasicBlock(out_feat, out_feat),
+				nn.AvgPool2d(2, 2)
+			]
+			return layers
+
+		self.convert_1d = nn.Sequential(
+			nn.Linear(4 * 4 * width, width * 2), nn.LeakyReLU(0.02),
+			nn.LayerNorm(width * 2),
+			nn.Linear(width * 2, num_latent * 2)
+		)
+
+		c, h, w = input_shape
+		conv_blocks = [
+			nn.Conv2d(c, 64, 5, 2, padding=2), nn.LeakyReLU(0.02)
+		]
+
+		ch, cw = h // 2, w // 2
+		c_in = 64
+		while min(ch // 4, cw // 4) > 2:
+			t_in = min(width, c_in * 2)
+			conv_blocks += block(c_in, t_in, [ch // 2, cw // 2])
+			c_in = t_in
+			ch, cw = ch // 2, cw // 2
+
+		conv_blocks += [
+			nn.Conv2d(c_in, width, kernel_size=1),
+			BasicBlock(width, width),
+			nn.AdaptiveAvgPool2d([4, 4]),
+		]
+
+		self.conv = nn.Sequential(*conv_blocks)
+
+	def forward(self, x):
+		img = self.conv(x)
+		feature = self.convert_1d(img.reshape(x.size(0), 4 * 4 * self.width))
+		mu, logvar = torch.split(feature, [self.num_latent] * 2, 1)
+		return mu, logvar
+
+
+class Discriminator(nn.Module):
+	def __init__(self, img_shape):
+		super().__init__()
+
+		self.model = nn.Sequential(
+			nn.Linear(int(np.prod(img_shape)), 512),
+			nn.LeakyReLU(0.2, inplace=True),
+			nn.Linear(512, 256),
+			nn.LeakyReLU(0.2, inplace=True),
+			nn.Linear(256, 1),
+			nn.Sigmoid(),
+		)
+
+	def forward(self, img):
+		img_flat = img.view(img.size(0), -1)
+		validity = self.model(img_flat)
+
+		return validity

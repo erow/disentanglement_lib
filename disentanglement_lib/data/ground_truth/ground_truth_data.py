@@ -111,7 +111,6 @@ class RandomAction(object):
     def __getitem__(self, item):
         factor = self.factor.copy()
         factor[self.action_index]=item
-
         obs = self.data.sample_observations_from_factors(factor.reshape(*([1]+list(factor.shape))),
                                                          np.random.RandomState())
         obs = obs.transpose(0,3,1,2)

@@ -183,7 +183,7 @@ def compute_udr_sklearn(ground_truth_data,
     Returns:
       scores_dict: a dictionary of the scores computed for UDR with the following
       keys:
-        raw_correlations: (num_models, num_models, latent_dim, latent_dim) -  The
+        raw_correlations: (num_models, num_models, num_latent, num_latent) -  The
           raw computed correlation matrices for all models. The pair of models is
           indexed by axis 0 and 1 and the matrix represents the computed
           correlation matrix between latents in axis 2 and 3.
@@ -202,8 +202,8 @@ def compute_udr_sklearn(ground_truth_data,
     logging.info("Number of Models: %s", num_models)
 
     logging.info("Training sklearn models.")
-    latent_dim = inferred_model_reps[0].shape[1]
-    corr_matrix_all = np.zeros((num_models, num_models, latent_dim, latent_dim))
+    num_latent = inferred_model_reps[0].shape[1]
+    corr_matrix_all = np.zeros((num_models, num_models, num_latent, num_latent))
 
     # Normalize and calculate mask based off of kl divergence to remove
     # uninformative latents.

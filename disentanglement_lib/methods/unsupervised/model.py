@@ -59,7 +59,7 @@ class BaseVAE(GaussianModel, nn.Module):
         self.alpha = alpha
         self.lam = lam
         self.summary = {}
-        self.global_step = 0
+        global_step = 0
         self.stage = 0
         self.shared = shared
         self.stage_steps = stage_steps
@@ -103,23 +103,14 @@ class BaseVAE(GaussianModel, nn.Module):
             s = (1 - pow(self.alpha, self.num_latent)) / (1 - self.alpha)
         return reg_loss / s
 
-    def z_hook(self, grad):
-        if wandb.run and self.global_step % 500 == 0:
-            log = {}
-            for i in range(self.num_latent):
-                # hist = np.histogram(grad[:,i].cpu().numpy(),bins=64,range=[-3,3])
-                log[f'grad/{i}'] = wandb.Histogram(grad[:, i].cpu())  # np_histogram=hist)
-            wandb.log(log)
-        return grad
-
-    def model_fn(self, features, labels):
+    def model_fn(self, features, labels, global_step):
         """Training compatible model function."""
         del labels
         self.summary = {}
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-        self.stage = min(self.global_step // self.stage_steps, self.num_latent - 1)
-        if self.global_step % self.stage_steps == 0:
+        self.stage = min(global_step // self.stage_steps, self.num_latent - 1)
+        if global_step % self.stage_steps == 0:
             print(self.stage)
 
         self.z_sampled = z_sampled
@@ -147,7 +138,7 @@ class BaseVAE(GaussianModel, nn.Module):
         for i in range(kl.shape[0]):
             self.summary[f"kl/{i}"] = kl[i]
 
-        self.global_step += 1
+        global_step += 1
         return loss, self.summary
 
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
@@ -252,6 +243,9 @@ class AnnealedVAE(BaseVAE):
         self.c_max = c_max
         self.iteration_threshold = iteration_threshold
 
+        self.c = 0
+        self.delta = c_max / iteration_threshold
+
         if wandb.run:
             wandb.config['gamma'] = gamma
             wandb.config['c_max'] = c_max
@@ -259,9 +253,9 @@ class AnnealedVAE(BaseVAE):
 
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
-        c = anneal(self.c_max, self.global_step, self.iteration_threshold)
+        self.c = max(self.c_max, self.c + self.delta)
         kl_loss = kl.sum()
-        return self.gamma * torch.abs(kl_loss - c)
+        return self.gamma * torch.abs(kl_loss - self.c)
 
 
 @gin.configurable("factor_vae")
@@ -284,7 +278,7 @@ class FactorVAE(BaseVAE):
         if wandb.run:
             wandb.config['gamma'] = gamma
 
-    def model_fn(self, features, labels):
+    def model_fn(self, features, labels, global_step):
         """TPUEstimator compatible model function."""
 
         data_shape = features.shape[1:]
@@ -559,16 +553,16 @@ class CascadeVAECReg(CascadeVAEC):
         super().__init__(input_shape)
         self.betas = [70, 40, 10, 6, 1]
 
-    def model_fn(self, features, labels):
+    def model_fn(self, features, labels, global_step):
         """Training compatible model function."""
         del labels
         self.summary = {}
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-        self.stage = min(self.global_step // self.stage_steps, self.num_latent - 1)
-        if self.global_step % self.stage_steps == 0:
+        self.stage = min(global_step // self.stage_steps, self.num_latent - 1)
+        if global_step % self.stage_steps == 0:
             print(self.stage)
-        if 'IPYTHONENABLE' in os.environ and self.global_step % 500 == 0:
+        if 'IPYTHONENABLE' in os.environ and global_step % 500 == 0:
             z_sampled.register_hook(self.z_hook)
 
         self.z_sampled = z_sampled
@@ -592,7 +586,6 @@ class CascadeVAECReg(CascadeVAEC):
         for i in range(kl.shape[0]):
             self.summary[f"kl/{i}"] = kl[i]
 
-        self.global_step += 1
         return loss, self.summary
 
     def information_reg(self, z_sampled, kl, features):
@@ -643,12 +636,13 @@ class CascadeVAECReg1(CascadeVAECReg):
 class Annealing(BaseVAE):
     def __init__(self, input_shape, beta_h=80):
         super().__init__(input_shape)
-        self.beta_h = beta_h
+        self.beta = beta_h
         self.total_steps = gin.query_parameter('train.training_steps')
-        wandb.config['beta_h'] = self.beta_h
+        self.delta = beta_h / self.total_steps
+        wandb.config['beta_h'] = beta_h
 
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
-        beta = max((1 - self.global_step / self.total_steps) * self.beta_h, 1)
+        beta = max(self.beta - self.delta, 1)
         self.summary['beta'] = beta
         return beta * (kl.sum())
 
@@ -663,14 +657,55 @@ class DEFT(BaseVAE):
         self.betas = betas
         self.gamma = gamma
         self.group_size = group_size
+        wandb.config['gamma'] = gamma
+        wandb.config['K'] = group_size
+        wandb.config['betas'] = betas
 
     def z_hook(self, grad):
         grad[:, :self.stage * self.group_size] *= self.gamma
         grad[:, self.group_size * (self.stage + 1):] = 0
         return grad
 
+    def model_fn(self, features, labels, global_step):
+        """Training compatible model function."""
+        del labels
+        self.summary = {}
+        z_mean, z_logvar = self.encode(features)
+        z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
+        self.stage = min(global_step // self.stage_steps, len(self.betas) - 1)
+        if global_step % self.stage_steps == 0:
+            print(self.stage)
+
+        self.z_sampled = z_sampled
+        reconstructions = self.decode(z_sampled)
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+        reconstruction_loss = torch.mean(per_sample_loss)
+        self.summary['reconstruction_loss'] = reconstruction_loss
+
+        kl = compute_gaussian_kl(z_mean, z_logvar)
+        kl_loss = kl.sum()
+        self.summary['kl_loss'] = kl_loss
+
+        regularizer = self.regularizer(kl, z_mean, z_logvar, z_sampled)
+        if self.lam > 0:
+            information_reg = self.information_reg(kl, z_sampled, features) * self.lam
+            loss = reconstruction_loss + regularizer + information_reg
+        else:
+            loss = reconstruction_loss + regularizer
+
+        elbo = torch.add(reconstruction_loss, kl_loss)
+
+        self.summary['elbo'] = -elbo
+        self.summary['loss'] = loss
+
+        for i in range(kl.shape[0]):
+            self.summary[f"kl/{i}"] = kl[i]
+
+        global_step += 1
+        return loss, self.summary
+
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
-        self.stage = min(self.stage, len(self.betas) - 1)
+
         beta = self.betas[self.stage]
         self.summary['beta'] = beta
         # z_sampled.register_hook(self.z_hook)

@@ -100,9 +100,9 @@ class Train(pl.LightningModule):
 
     def visualize_model(self, model) -> None:
         _encoder, _decoder = convert_model(model)
-        latent_dim = self.ae.num_latent
-        mu = torch.zeros(1, latent_dim)
-        fig = plt_sample_traversal(mu, _decoder, 8, range(latent_dim), 2)
+        num_latent = self.ae.num_latent
+        mu = torch.zeros(1, num_latent)
+        fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
         wandb.log({'traversal': wandb.Image(fig)})
 
     def gradient_test(self, model):

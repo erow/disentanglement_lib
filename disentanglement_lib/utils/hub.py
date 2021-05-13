@@ -5,11 +5,11 @@ import wandb
 import gin
 
 
-def get_model(run,
+def get_model(run, model_fun,
               device='cpu',
               conf="train.gin",
-              model_file="model.pt"):
-    from disentanglement_lib.methods.unsupervised.train import Train
+              model_file="model.pt",
+              img_shape=[1, 64, 64]):
     if isinstance(run, str):
         model_path = os.path.join(run, model_file)
         conf_path = os.path.join(run, conf)
@@ -18,8 +18,7 @@ def get_model(run,
         conf_path = run.file(conf).download('tmp', True).name
     with gin.unlock_config():
         gin.parse_config_file(conf_path, True)
-    train = Train()
-    model = train.ae
+    model = model_fun(img_shape)
     model.load_state_dict(torch.load(model_path))
     model.to(device)
     model.eval()

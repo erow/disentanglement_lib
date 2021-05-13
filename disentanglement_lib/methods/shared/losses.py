@@ -60,20 +60,6 @@ def bernoulli_loss(true_images,
 
     return loss - loss_lower_bound
 
-
-@gin.configurable("ssim_loss", allowlist=[])
-def ssim_loss(true_images, reconstructed_images, activation):
-    """Computes the l2 loss."""
-    if activation == "logits":
-        return ssim(true_images, torch.sigmoid(reconstructed_images),
-                    reduction='none').sum([1, 2, 3])
-    elif activation == "tanh":
-        reconstructed_images = torch.tanh(reconstructed_images) / 2 + 0.5
-        return torch.sum(
-            ssim(true_images, reconstructed_images, reduction='none'), [1, 2, 3])
-    else:
-        raise NotImplementedError("Activation not supported.")
-
 @gin.configurable("l2_loss", allowlist=[])
 def l2_loss(true_images, reconstructed_images, activation):
     """Computes the l2 loss."""
@@ -107,12 +93,12 @@ def kl_normal_loss(mean, logvar, mean_dim=None):
     Parameters
     ----------
     mean : torch.Tensor
-        Mean of the normal distribution. Shape (batch_size, latent_dim) where
+        Mean of the normal distribution. Shape (batch_size, num_latent) where
         D is dimension of distribution.
 
     logvar : torch.Tensor
         Diagonal log variance of the normal distribution. Shape (batch_size,
-        latent_dim)
+        num_latent)
     """
     if mean_dim is None:
         mean_dim = [0]

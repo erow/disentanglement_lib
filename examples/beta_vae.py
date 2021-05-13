@@ -118,7 +118,7 @@ class DEFTIVAEII(DEFTIVAEI):
 class TestTrain(train.Train):
     def visualize_model(self, model) -> dict:
         log = super().visualize_model(model)
-        latent_dim = self.ae.num_latent
+        num_latent = self.ae.num_latent
 
         def to_decoder(decode):
             def _decoder(latent_vectors):
@@ -131,8 +131,8 @@ class TestTrain(train.Train):
 
         if hasattr(model, 'decodes'):
             for i, decode in enumerate(model.decodes):
-                mu = torch.zeros(1, latent_dim)
-                fig = plt_sample_traversal(mu, to_decoder(decode), 8, range(latent_dim), 2)
+	            mu = torch.zeros(1, num_latent)
+	            fig = plt_sample_traversal(mu, to_decoder(decode), 8, range(num_latent), 2)
                 log.update({f'traversal/{i}': wandb.Image(fig)})
 
         return log

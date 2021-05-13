@@ -25,6 +25,10 @@ model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
 reconstruction_loss.loss_fn = @bernoulli_loss
 
+# evaluate
+evaluate.random_seed=99
+evaluate.batch_size=256
+
 # metric
 discretizer.discretizer_fn = @histogram_discretizer
 discretizer.num_bins = 20

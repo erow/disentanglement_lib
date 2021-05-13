@@ -65,7 +65,7 @@ def vis_all_interventional_effects(gen_factors, latents, output_dir):
 
 def _visualize_interventional_effect(gen_factors,
                                      latents,
-                                     latent_dim,
+                                     num_latent,
                                      const_factor_idx,
                                      intervened_factor_idx,
                                      no_conditioning=False,
@@ -77,7 +77,7 @@ def _visualize_interventional_effect(gen_factors,
     Args:
       gen_factors: Ground truth generative factors.
       latents: Latent factors.
-      latent_dim: Latent dimension under consideration.
+      num_latent: Latent dimension under consideration.
       const_factor_idx: Generative factor which is being kept constant.
       intervened_factor_idx: Generative factor on which we intervene.
       no_conditioning: Whether or not we should condition on const_factor_idx.
@@ -102,7 +102,7 @@ def _visualize_interventional_effect(gen_factors,
     # Plot all points, color indicates constant factor.
     if plot_scatter:
         ax.scatter(
-            gen_factors[:, intervened_factor_idx], latents[:, latent_dim], c=cols)
+	        gen_factors[:, intervened_factor_idx], latents[:, num_latent], c=cols)
 
     # Compute possible g_i and g_j.
     if no_conditioning:
@@ -111,14 +111,14 @@ def _visualize_interventional_effect(gen_factors,
         stdev_for_j = np.empty([g_js.shape[0]])
         for j_idx in range(g_js.shape[0]):
             match = (gen_factors[:, intervened_factor_idx] == g_js[j_idx])
-            e_for_j[j_idx] = np.mean(latents[match, latent_dim])
-            median_for_j[j_idx] = np.median(latents[match, latent_dim])
-            stdev_for_j[j_idx] = np.std(latents[match, latent_dim])
+            e_for_j[j_idx] = np.mean(latents[match, num_latent])
+            median_for_j[j_idx] = np.median(latents[match, num_latent])
+            stdev_for_j[j_idx] = np.std(latents[match, num_latent])
         ax.plot(g_js, e_for_j, linewidth=2, markersize=12, label="mean")
         ax.plot(g_js, median_for_j, linewidth=2, markersize=12, label="median")
         ax.plot(g_js, e_for_j + stdev_for_j, linestyle="--", c="b", linewidth=1)
         ax.plot(g_js, e_for_j - stdev_for_j, linestyle="--", c="b", linewidth=1)
-        ax.set_ylabel("E[z_{}|g_{}]".format(latent_dim, intervened_factor_idx))
+        ax.set_ylabel("E[z_{}|g_{}]".format(num_latent, intervened_factor_idx))
         ax.set_xlabel("g_{}".format(intervened_factor_idx))
         ax.legend()
     else:
@@ -129,7 +129,7 @@ def _visualize_interventional_effect(gen_factors,
                 match = (gen_factors[:, [const_factor_idx, intervened_factor_idx]] == [
                     g_is[i_idx], g_js[j_idx]
                 ]).all(axis=1)
-                e_given_i_for_j[i_idx, j_idx] = np.mean(latents[match, latent_dim])
+                e_given_i_for_j[i_idx, j_idx] = np.mean(latents[match, num_latent])
             ax.plot(
                 g_js,
                 e_given_i_for_j[i_idx, :],
@@ -140,7 +140,7 @@ def _visualize_interventional_effect(gen_factors,
                 markersize=3)
 
         ax.set_xlabel("int. g_{}".format(intervened_factor_idx))
-        ax.set_ylabel("E[z_{}|g_{}, g_{}]".format(latent_dim, const_factor_idx,
+        ax.set_ylabel("E[z_{}|g_{}, g_{}]".format(num_latent, const_factor_idx,
                                                   intervened_factor_idx))
         ax.set_title("Interventional Effect (keeping parent fixed)")
         if plot_legend:

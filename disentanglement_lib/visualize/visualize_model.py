@@ -110,7 +110,7 @@ def visualize(model_dir,
     visualize_reconstructions(output_dir, dataset, model, activation=activation)
     visualize_samples(output_dir, num_latent, _decoder, activation=activation)
     visualize_traversal(output_dir, dataset, _encoder, _decoder, activation=activation)
-    visualize_intervention(output_dir, dataset, _encoder, activation=activation)
+    visualize_intervention(output_dir, dataset, _encoder)
     # Finally, we clear the gin config that we have set.
     gin.clear_config()
 
@@ -237,7 +237,6 @@ def visualize_traversal(output_dir, dataset, _encoder, _decoder,
 
 def visualize_intervention(output_dir, dataset, _encoder,
                            num_points_irs=10000,
-                           activation=sigmoid,
                            random_state=np.random.RandomState()):
     # Interventional effects visualization.
     factors = dataset.sample_factors(num_points_irs, random_state)
