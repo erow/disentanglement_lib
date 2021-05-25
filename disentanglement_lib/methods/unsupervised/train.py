@@ -43,13 +43,14 @@ import wandb
 
 
 def config_dict():
-	configuration_object = gin.config._CONFIG
-	macros = {}
-	for (scope, selector), config in configuration_object.items():
-		selector1 = selector.split('.')[-1]
-		for k, v in config.items():
-			macros[f"{selector1}.{k}"] = v
-	return macros
+    configuration_object = gin.config._CONFIG
+    macros = {}
+    for (scope, selector), config in configuration_object.items():
+        selector1 = selector.split('.')[-1]
+        for k, v in config.items():
+            macros[f"{selector1}.{k}"] = v
+    return macros
+
 
 @gin.configurable("train", blacklist=[])
 class Train(pl.LightningModule):
@@ -97,11 +98,14 @@ class Train(pl.LightningModule):
         # img_shape = [1,64,64]
         self.ae = model(img_shape)
 
+    def evaluate(self, model):
+        self.evaluator.evaluate(self.ae)
 
     def training_step(self, batch, batch_idx):
         if self.eval_numbers > 0 and \
-                (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
-	        self.evaluator.evaluate(self.ae)
+            (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
+            self.evaluate(self.ae)
+
         x, y = batch
         loss, summary = self.ae.model_fn(x.float(), y, self.global_step)
         self.log_dict(summary)
@@ -119,13 +123,13 @@ class Train(pl.LightningModule):
         optimizer = self.opt_name(self.parameters(), lr=self.lr)
         return optimizer
 
-    def save_model(self, file):
-        dir = str(self.dir)
+    def save_model(self, file, dir=None):
+        if dir is None:
+            dir = str(self.dir)
         file_path = os.path.join(dir, file)
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
         torch.save(self.ae.state_dict(), file_path)
-        wandb.save(file_path, base_path=dir)
-
+        wandb.save(file_path)
 
 
 def train_with_gin(model_dir,
@@ -182,7 +186,7 @@ def train_with_gin(model_dir,
                              default_root_dir=model_dir)
 
     trainer.fit(pl_model)
-    # pl_model.save_model('model.pt')
+    pl_model.save_model('model.pt', model_dir)
     from disentanglement_lib.utils.results import save_gin
     save_gin(f"{model_dir}/train.gin")
     wandb.save(f"{model_dir}/train.gin", base_path=model_dir)

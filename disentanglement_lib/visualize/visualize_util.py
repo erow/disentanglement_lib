@@ -64,19 +64,20 @@ def traversal_latents(base_latent, traversal_vector, dim):
 
 def plot_bar(axes, images, label=None):
     for ax, img in zip(axes, images):
-	    if img.shape[2] == 3:
+        if img.shape[2] == 3:
             ax.imshow(img)
         elif img.shape[2] == 1:
             ax.imshow(img.squeeze(2), cmap='gray')
+
         ax.axis('off')
 
-    if label:
-        axes[-1].get_yaxis().set_label_position("right")
-        axes[-1].set_ylabel(label)
+        if label:
+            axes[-1].get_yaxis().set_label_position("right")
+            axes[-1].set_ylabel(label)
 
 
 def sigmoid(x):
-	return 1 / (1 + np.exp(-np.clip(x, -20, 20)))
+    return 1 / (1 + np.exp(-np.clip(x, -20, 20)))
 
 
 def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
@@ -93,21 +94,21 @@ def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
     if len(mu.shape) == 1:
         mu = mu.unsqueeze(0)
     with torch.no_grad():
-	    fig, axes = plt.subplots(dim_len, traversal_len, squeeze=False,
-	                             figsize=(traversal_len, dim_len,))
+        fig, axes = plt.subplots(dim_len, traversal_len, squeeze=False,
+                                 figsize=(traversal_len, dim_len,))
 
-        plt.tight_layout(pad=0.1)
-	    plt.subplots_adjust(wspace=0.01, hspace=0.05)
+    plt.tight_layout(pad=0.1)
+    plt.subplots_adjust(wspace=0.01, hspace=0.05)
 
-        for i, dim in enumerate(dim_list):
-            base_latents = mu.clone()
-            linear_traversal = torch.linspace(-r, r, traversal_len)
-            traversals = traversal_latents(base_latents, linear_traversal, dim)
-            recon_batch = decode(traversals)
+    for i, dim in enumerate(dim_list):
+        base_latents = mu.clone()
+        linear_traversal = torch.linspace(-r, r, traversal_len)
+        traversals = traversal_latents(base_latents, linear_traversal, dim)
+        recon_batch = decode(traversals)
 
-            plot_bar(axes[i, :], sigmoid(recon_batch))
+        plot_bar(axes[i, :], sigmoid(recon_batch))
 
-        return fig
+    return fig
 
 
 def save_image(image, image_path):

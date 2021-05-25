@@ -1,11 +1,12 @@
 import os
 
 import torch
-import wandb
 import gin
 
+from disentanglement_lib.methods.unsupervised.model import BaseVAE
 
-def get_model(run, model_fun,
+
+def get_model(run, model_fun=BaseVAE,
               device='cpu',
               conf="train.gin",
               model_file="model.pt",

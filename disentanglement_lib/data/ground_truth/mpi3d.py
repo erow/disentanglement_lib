@@ -83,7 +83,7 @@ class MPI3D(ground_truth_data.GroundTruthData):
         else:
             raise ValueError("Unknown mode provided.")
         data = np.load(mpi3d_path)
-        self.images = data["images"]
+        self.images = np.array(data["images"], dtype=np.float32)
         self.latent_factor_indices = [0, 1, 2, 3, 4, 5, 6]
         self.num_total_factors = 7
         self.state_space = util.SplitDiscreteStateSpace(self.factor_sizes,
@@ -110,4 +110,4 @@ class MPI3D(ground_truth_data.GroundTruthData):
     def sample_observations_from_factors(self, factors, random_state):
         all_factors = self.state_space.sample_all_factors(factors, random_state)
         indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
-        return self.images[indices] / 255.
+        return self.images[indices]

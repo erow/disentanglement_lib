@@ -50,20 +50,40 @@ class ProjectionSet(Dataset):
         return self.encoder(obs)[0], factors[0, self.factor_indices]
 
 
-@gin.configurable("IB")
-class IB(BaseVAE):
-    def __init__(self, input_shape, C_max=6, gamma=300):
-        super().__init__(input_shape)
-        self.gamma = gamma
-        self.C_max = C_max
-        self.delta = C_max / 1e4
-        self.C = 0
+def attention_score(K, Q):
+    score = K.matmul(Q.T) / np.sqrt(K.size(1))
+    return torch.softmax(score, dim=1)
 
-    def regularizer(self, kl, z_mean, z_logvar, z_sampled):
-        KL = kl.sum()
-        # self.C = min(self.C_max, self.C+self.delta)
-        self.c = self.C_max
-        return KL + self.gamma * torch.max(KL - self.C, torch.zeros(1, device=KL.device))
+
+@gin.configurable("Attention")
+class Attention(BaseVAE):
+    def __init__(self, input_shape, ):
+        super().__init__(input_shape)
+        self.Q = torch.nn.Linear(2, self.num_latent)
+
+    def model_fn(self, features, labels, global_step):
+        self.summary = {}
+        bs = features.size(0)
+        z_mean, z_logvar = self.encode(features)
+        z = self.Q(labels.float())
+        z_sampled = self.sample_from_latent_distribution(torch.zeros_like(z_mean), torch.zeros_like(z_mean))
+
+        reconstructions = self.decode(z_mean)
+        expand_recons = reconstructions.unsqueeze(0).repeat([bs, 1, 1, 1, 1])
+        att_s = attention_score(z_mean, z_sampled).reshape(bs, bs, 1, 1, 1)
+
+        weighted_recons = (att_s * expand_recons).sum(1)
+        att_loss = losses.make_reconstruction_loss(features, weighted_recons).mean()
+
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions.data).mean()
+        kl = compute_gaussian_kl(z_mean, z_logvar)
+        gamma = 10 * (torch.exp(z_logvar) - z_logvar).mean()
+        kl_loss = kl.sum()
+        for i in range(kl.shape[0]):
+            self.summary[f"kl/{i}"] = kl[i]
+        self.summary['reconstruction_loss'] = per_sample_loss
+        self.summary['loss'] = att_loss
+        return att_loss + kl_loss, self.summary
 
 
 class TraceMITrain(train.Train):
@@ -85,11 +105,12 @@ class TraceMITrain(train.Train):
         for obs, _ in self.evaluator.dl:
             mean.append(model.encode(obs)[0].data)
         mean = torch.cat(mean, 0).numpy()
-        indices = np.argsort(mean.std(0))
-        # tsne = manifold.TSNE()
-        # embedding = tsne.fit_transform(mean)
+        # indices = np.argsort(mean.std(0))
+        tsne = manifold.TSNE()
+        embedding = tsne.fit_transform(mean)
         fig, axes = plt.subplots()
-        plt.scatter(*mean[:, indices[-2:]].T)
+        # plt.scatter(*mean[:, indices[-2:]].T)
+        plt.scatter(*embedding.T)
         log['codes'] = wandb.Image(fig)
         log['latents'] = mean.tolist()
 
@@ -102,10 +123,10 @@ class TraceMITrain(train.Train):
 
 # 2. Train beta-VAE from the configuration at model.gin.
 bindings = [
-               "train.model=@IB",
-               "IB.C_max=0.68",
+               "train.model=@Attention",
+               "train.batch_size=64",
                "train.dataset = 'translation'",
-               "translation.pos_type=2",
+               "translation.pos_type=0",
                "translation.radius=5",
                "evaluate.dataset = 'translation'",
                "evaluate.random_seed=99",
@@ -113,10 +134,10 @@ bindings = [
            ] + [i[2:] for i in unknown]
 gin.parse_config_files_and_bindings(["shared.gin"], bindings, skip_unknown=True)
 
-logger = WandbLogger(project='IB', tags=['IB'])
+logger = WandbLogger(project='Attention')
 print(logger.experiment.url)
 
-pl_model = TraceMITrain(eval_numbers=10, dataset="translation")
+pl_model = TraceMITrain(eval_numbers=5, dataset="translation")
 
 trainer = pl.Trainer(logger,
                      max_steps=pl_model.training_steps,
