@@ -654,6 +654,7 @@ class Annealing(BaseVAE):
     def regularizer(self, kl, z_mean, z_logvar, z_sampled):
         beta = max(self.beta - self.delta, 1)
         self.summary['beta'] = beta
+        self.beta = beta
         return beta * (kl.sum())
 
 

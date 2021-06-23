@@ -78,10 +78,12 @@ class Train(pl.LightningModule):
                  opt_name=torch.optim.Adam,
                  lr=5e-4,
                  eval_numbers=1,
+                 eval_callbacks=[],
                  name="",
+                 dir=None,
                  model_num=None):
         super().__init__()
-        self.dir = wandb.run.dir
+        self.dir = wandb.run.dir if dir is None else dir
         self.training_steps = training_steps
         self.random_seed = random_seed
         self.batch_size = batch_size
@@ -93,13 +95,14 @@ class Train(pl.LightningModule):
         self.save_hyperparameters(config_dict())
         self.opt_name = opt_name
         self.data = named_data.get_named_ground_truth_data(dataset)
-        self.evaluator = Evaluate()
+        self.eval_callbacks = eval_callbacks
         img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
         # img_shape = [1,64,64]
         self.ae = model(img_shape)
 
     def evaluate(self, model):
-        self.evaluator.evaluate(self.ae)
+        for evaluator in self.eval_callbacks:
+            evaluator(model)
 
     def training_step(self, batch, batch_idx):
         if self.eval_numbers > 0 and \

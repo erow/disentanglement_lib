@@ -313,114 +313,114 @@ class lite_decoder(nn.Module):
 
 @gin.configurable("deep_decoder", allowlist=[])
 class DeepConvDecoder(nn.Module):
-	def __init__(self, num_latent, output_shape, width=256):
-		super().__init__()
-		self.output_shape = output_shape
-		self.num_latent = num_latent
-		self.width = width
+    def __init__(self, num_latent, output_shape, width=256):
+        super().__init__()
+        self.output_shape = output_shape
+        self.num_latent = num_latent
+        self.width = width
 
-		def block(in_feat, out_feat, size):
-			layers = [BasicBlock(in_feat, in_feat),
-			          BasicBlock(in_feat, in_feat),
-			          nn.UpsamplingBilinear2d(size),
-			          nn.Conv2d(in_feat, out_feat, kernel_size=(1, 1))]
-			return layers
+        def block(in_feat, out_feat, size):
+            layers = [BasicBlock(in_feat, in_feat),
+                      BasicBlock(in_feat, in_feat),
+                      nn.UpsamplingBilinear2d(size),
+                      nn.Conv2d(in_feat, out_feat, kernel_size=(1, 1))]
+            return layers
 
-		self.convert_2d = nn.Sequential(
-			nn.Linear(num_latent, width * 2), nn.LeakyReLU(0.02),
-			nn.Linear(width * 2, 4 * 4 * width),
-		)
+        self.convert_2d = nn.Sequential(
+            nn.Linear(num_latent, width * 2), nn.LeakyReLU(0.02),
+            nn.Linear(width * 2, 4 * 4 * width),
+        )
 
-		c, h, w = output_shape
-		conv_blocks = []
+        c, h, w = output_shape
+        conv_blocks = []
 
-		ch, cw = 4, 4
-		c_in = width
-		while min(h / ch, w / cw) > 2:
-			conv_blocks += block(c_in, c_in // 2, [ch * 2, cw * 2])
-			c_in = c_in // 2
-			ch, cw = ch * 2, cw * 2
-		conv_blocks += (block(c_in, c_in // 2, [h, w]))  # same size
-		c_in = c_in // 2
+        ch, cw = 4, 4
+        c_in = width
+        while min(h / ch, w / cw) > 2:
+            conv_blocks += block(c_in, c_in // 2, [ch * 2, cw * 2])
+            c_in = c_in // 2
+            ch, cw = ch * 2, cw * 2
+        conv_blocks += (block(c_in, c_in // 2, [h, w]))  # same size
+        c_in = c_in // 2
 
-		conv_blocks = conv_blocks + [
-			nn.LeakyReLU(0.02),
-			nn.Conv2d(c_in, c, (5, 5), padding=2)
-		]
-		# same channel
-		self.conv = nn.Sequential(*conv_blocks)
+        conv_blocks = conv_blocks + [
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(c_in, c, (5, 5), padding=2)
+        ]
+        # same channel
+        self.conv = nn.Sequential(*conv_blocks)
 
-	def forward(self, z):
-		img = self.convert_2d(z).view(z.size(0), self.width, 4, 4)
-		img = self.conv(img)
-		return img
+    def forward(self, z):
+        img = self.convert_2d(z).view(z.size(0), self.width, 4, 4)
+        img = self.conv(img)
+        return img
 
 
 @gin.configurable("deep_encoder", allowlist=[])
 class DeepConvEncoder(nn.Module):
-	def __init__(self, input_shape, num_latent, width=256):
-		super().__init__()
-		self.input_shape = input_shape
-		self.num_latent = num_latent
-		self.width = width
+    def __init__(self, input_shape, num_latent, width=256):
+        super().__init__()
+        self.input_shape = input_shape
+        self.num_latent = num_latent
+        self.width = width
 
-		def block(in_feat, out_feat, size):
-			layers = [
-				nn.Conv2d(in_feat, out_feat, kernel_size=1),
-				BasicBlock(out_feat, out_feat),
-				nn.AvgPool2d(2, 2)
-			]
-			return layers
+        def block(in_feat, out_feat, size):
+            layers = [
+                nn.Conv2d(in_feat, out_feat, kernel_size=1),
+                BasicBlock(out_feat, out_feat),
+                nn.AvgPool2d(2, 2)
+            ]
+            return layers
 
-		self.convert_1d = nn.Sequential(
-			nn.Linear(4 * 4 * width, width * 2), nn.LeakyReLU(0.02),
-			nn.LayerNorm(width * 2),
-			nn.Linear(width * 2, num_latent * 2)
-		)
+        self.convert_1d = nn.Sequential(
+            nn.Linear(4 * 4 * width, width * 2), nn.LeakyReLU(0.02),
+            nn.LayerNorm(width * 2),
+            nn.Linear(width * 2, num_latent * 2)
+        )
 
-		c, h, w = input_shape
-		conv_blocks = [
-			nn.Conv2d(c, 64, 5, 2, padding=2), nn.LeakyReLU(0.02)
-		]
+        c, h, w = input_shape
+        conv_blocks = [
+            nn.Conv2d(c, 64, 5, 2, padding=2), nn.LeakyReLU(0.02)
+        ]
 
-		ch, cw = h // 2, w // 2
-		c_in = 64
-		while min(ch // 4, cw // 4) > 2:
-			t_in = min(width, c_in * 2)
-			conv_blocks += block(c_in, t_in, [ch // 2, cw // 2])
-			c_in = t_in
-			ch, cw = ch // 2, cw // 2
+        ch, cw = h // 2, w // 2
+        c_in = 64
+        while min(ch // 4, cw // 4) > 2:
+            t_in = min(width, c_in * 2)
+            conv_blocks += block(c_in, t_in, [ch // 2, cw // 2])
+            c_in = t_in
+            ch, cw = ch // 2, cw // 2
 
-		conv_blocks += [
-			nn.Conv2d(c_in, width, kernel_size=1),
-			BasicBlock(width, width),
-			nn.AdaptiveAvgPool2d([4, 4]),
-		]
+        conv_blocks += [
+            nn.Conv2d(c_in, width, kernel_size=1),
+            BasicBlock(width, width),
+            nn.AdaptiveAvgPool2d([4, 4]),
+        ]
 
-		self.conv = nn.Sequential(*conv_blocks)
+        self.conv = nn.Sequential(*conv_blocks)
 
-	def forward(self, x):
-		img = self.conv(x)
-		feature = self.convert_1d(img.reshape(x.size(0), 4 * 4 * self.width))
-		mu, logvar = torch.split(feature, [self.num_latent] * 2, 1)
-		return mu, logvar
+    def forward(self, x):
+        img = self.conv(x)
+        feature = self.convert_1d(img.reshape(x.size(0), 4 * 4 * self.width))
+        mu, logvar = torch.split(feature, [self.num_latent] * 2, 1)
+        return mu, logvar
 
 
 class Discriminator(nn.Module):
-	def __init__(self, img_shape):
-		super().__init__()
+    def __init__(self, img_shape):
+        super().__init__()
 
-		self.model = nn.Sequential(
-			nn.Linear(int(np.prod(img_shape)), 512),
-			nn.LeakyReLU(0.2, inplace=True),
-			nn.Linear(512, 256),
-			nn.LeakyReLU(0.2, inplace=True),
-			nn.Linear(256, 1),
-			nn.Sigmoid(),
-		)
+        self.model = nn.Sequential(
+            nn.Linear(int(np.prod(img_shape)), 512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 1),
+            nn.Sigmoid(),
+        )
 
-	def forward(self, img):
-		img_flat = img.view(img.size(0), -1)
-		validity = self.model(img_flat)
+    def forward(self, img):
+        img_flat = img.view(img.size(0), -1)
+        validity = self.model(img_flat)
 
-		return validity
+        return validity
