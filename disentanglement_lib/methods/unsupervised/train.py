@@ -41,6 +41,8 @@ import gin
 import pathlib, shutil
 import wandb
 
+from disentanglement_lib.methods.unsupervised.model import BaseVAE
+
 
 def config_dict():
     configuration_object = gin.config._CONFIG
@@ -71,7 +73,7 @@ class Train(pl.LightningModule):
 
     def __init__(self,
                  dataset=gin.REQUIRED,
-                 model=gin.REQUIRED,
+                 model=BaseVAE,
                  training_steps=gin.REQUIRED,
                  random_seed=gin.REQUIRED,
                  batch_size=gin.REQUIRED,

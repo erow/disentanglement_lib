@@ -30,9 +30,13 @@ import torch.nn.functional as F
 class GaussianModel:
     """Abstract base class of a Gaussian encoder model."""
 
-    def reconstruct(self, images):
+    def reconstruct(self, images, sample=False):
         mu, logvar = self.encode(images)
-        return self.decode(mu)
+        if sample:
+            z = self.sample_from_latent_distribution(mu, logvar)
+        else:
+            z = mu
+        return self.decode(z)
 
     # def encode(self, images):
     #     raise NotImplementedError
