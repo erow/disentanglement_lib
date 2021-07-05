@@ -14,20 +14,16 @@
 # limitations under the License.
 
 train.batch_size = 256
-train.model = @vae
 train.training_steps = 70000
-model.stage_steps=6000
 train.random_seed=99
 train.lr = 0.0005
 dataset.name = "dsprites_full"
 model.num_latent = 10
+model.regularizers = [@vae]
 model.encoder_fn = @conv_encoder
 model.decoder_fn = @deconv_decoder
 reconstruction_loss.loss_fn = @bernoulli_loss
 
-# evaluate
-evaluate.random_seed=99
-evaluate.batch_size=256
 
 # metric
 discretizer.discretizer_fn = @histogram_discretizer

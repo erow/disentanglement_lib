@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
+# https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -21,6 +22,10 @@ parser = argparse.ArgumentParser(add_help=True)
 parser.add_argument('--output', default='output', help="Output path.")
 parser.add_argument('--metrics', nargs='+', default=[])
 parser.add_argument('--overwrite', default=True, type=bool)
+
+# from pytorch_lightning.utilities.cli import LightningCLI
+#
+# cli = LightningCLI(train.Train)
 
 if __name__ == '__main__':
     args, unknown = parser.parse_known_args()

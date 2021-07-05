@@ -19,8 +19,7 @@ from __future__ import division
 from __future__ import print_function
 import os
 import time
-
-from disentanglement_lib.methods.unsupervised.evaluate import Evaluate
+from disentanglement_lib.methods.unsupervised import evaluate
 
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
@@ -79,7 +78,6 @@ class Train(pl.LightningModule):
                  batch_size=gin.REQUIRED,
                  opt_name=torch.optim.Adam,
                  lr=5e-4,
-                 eval_numbers=1,
                  eval_callbacks=[],
                  name="",
                  dir=None,
@@ -92,24 +90,30 @@ class Train(pl.LightningModule):
         self.lr = lr
         self.name = name
         self.model_num = model_num
-        self.eval_numbers = eval_numbers
 
         self.save_hyperparameters(config_dict())
         self.opt_name = opt_name
         self.data = named_data.get_named_ground_truth_data(dataset)
-        self.eval_callbacks = eval_callbacks
+        self.eval_callbacks = [f() for f in eval_callbacks]
+
         img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
         # img_shape = [1,64,64]
         self.ae = model(img_shape)
 
+    @torch.no_grad()
     def evaluate(self, model):
+        dl = self.train_dataloader()
+        eval_result = {}
         for evaluator in self.eval_callbacks:
-            evaluator(model)
+            eval_result.update(evaluator(model, dl, self.global_step))
+
+        if eval_result:
+            wandb.log(eval_result)
 
     def training_step(self, batch, batch_idx):
-        if self.eval_numbers > 0 and \
-            (self.global_step + 1) % (self.training_steps // self.eval_numbers) == 0:
-            self.evaluate(self.ae)
+        self.ae.eval()
+        self.evaluate(self.ae, )
+        self.ae.train()
 
         x, y = batch
         loss, summary = self.ae.model_fn(x.float(), y, self.global_step)

@@ -80,8 +80,8 @@ def compute_beta_vae_sklearn(ground_truth_data,
     eval_accuracy = model.score(eval_points, eval_labels)
     logging.info("Evaluation set accuracy: %.2g", eval_accuracy)
     scores_dict = {}
-    scores_dict["train_accuracy"] = train_accuracy
-    scores_dict["eval_accuracy"] = eval_accuracy
+    scores_dict["beta_vae_train_accuracy"] = train_accuracy
+    scores_dict["beta_vae_eval_accuracy"] = eval_accuracy
     return scores_dict
 
 

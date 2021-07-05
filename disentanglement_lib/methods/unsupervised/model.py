@@ -38,7 +38,7 @@ import gin
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 
 
-def H(p):
+def BernoulliH(p):
     p = torch.clamp(p, 1e-6, 1 - 1e-6)
     h = p * (p).log() + (1 - p) * (1 - p).log()
     return -h
@@ -555,7 +555,7 @@ class DecoderReg(Regularizer):
             z2 = torch.randn(num_samples, self.num_latent - i, device=device)
             z = torch.cat([z1[:, :i], z2], 1)
             recons = torch.sigmoid(self.decode(z))
-            H_xCz.append(H(recons.mean(0)).flatten())
+            H_xCz.append(BernoulliH(recons.mean(0)).flatten())
 
         H_xCz = torch.stack(H_xCz)
         H_gap = H_xCz[1:] - H_xCz[:-1]

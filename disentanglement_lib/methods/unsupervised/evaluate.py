@@ -2,6 +2,8 @@ import gin
 import numpy as np
 import torch
 import wandb
+from torch import nn
+
 from disentanglement_lib.methods.shared import losses
 from torch.utils.data import DataLoader
 
@@ -14,23 +16,38 @@ from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
 import torch.nn.functional as F
 
 
-@gin.configurable('evaluate')
-class Evaluate:
-    def __init__(self,
-                 dataset=gin.REQUIRED,
-                 random_seed=99,
-                 batch_size=256, ):
-        self.data = named_data.get_named_ground_truth_data(dataset)
-        self.dl = DataLoader(self.data, batch_size=batch_size, num_workers=4, pin_memory=True)
-        self.random_state = np.random.RandomState(random_seed)
+class Evaluation():
+    def __init__(self, evaluation_steps):
+        self.evaluation_steps = evaluation_steps
+        self.global_steps = 0
 
-    def estimate_decomposition(self, model, dataset_loader):
+    def __call__(self, model, train_dl, global_steps):
+        if (global_steps + 1) % self.evaluation_steps == 0:
+            self.global_steps = global_steps
+            return self.compute(model, train_dl)
+        return {}
+
+    def compute(self, model, train_dl):
+        return NotImplemented
+
+
+@gin.configurable('eval_decomposition')
+class Decomposition(Evaluation):
+    def __init__(self, evaluation_steps, dataset=None, random_seed=99, batch_size=256):
+        super().__init__(evaluation_steps)
+        if dataset:
+            self.data = named_data.get_named_ground_truth_data(dataset)
+            self.dl = DataLoader(self.data, batch_size=batch_size, num_workers=4, pin_memory=True)
+            self.random_state = np.random.RandomState(random_seed)
+
+    def compute(self, model, train_dl=None):
         """
         reference: https://github.com/rtqichen/beta-tcvae/blob/master/elbo_decomposition.py
         :param model:
         :param dataset_loader:
         :return: dict(): TC, MI, DWKL
         """
+        dataset_loader = train_dl if train_dl else self.dl
         N = len(dataset_loader.dataset)  # number of data samples
         K = model.num_latent  # number of latent variables
         S = 1  # number of latent variable samples
@@ -92,22 +109,32 @@ class Evaluate:
                    H_q_z=H_qz)
         return log
 
-    def compute_mig(self, model, device='cpu') -> dict:
-        if not self.data.supervision:
-            return {}
-        _encoder, _decoder = convert_model(model, device=device)
-        result = mig.compute_mig(self.data, lambda x: _encoder(x)[0], np.random.RandomState(), )
+
+@gin.configurable('eval_mig')
+class MIGScore(Evaluation):
+    def compute(self, model, train_dl) -> dict:
+        model.cpu()
+        _encoder, _decoder = convert_model(model, device='cpu')
+        result = mig.compute_mig(train_dl.dataset, lambda x: _encoder(x)[0], np.random.RandomState(), )
+        model.cuda()
         return result
 
-    def visualize_model(self, model) -> dict:
+
+@gin.configurable('eval_visualization')
+class Visualization(Evaluation):
+    def compute(self, model, train_dl) -> dict:
         _encoder, _decoder = convert_model(model)
         num_latent = model.num_latent
         mu = torch.zeros(1, num_latent)
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
         return {'traversal': wandb.Image(fig)}
 
+
+@gin.configurable('eval_H_xCz')
+class H_xCz(Evaluation):
     @torch.no_grad()
-    def compute_H_xCz(self, model, device='cpu', num_samples=10000):
+    def compute(self, model, train_dl):
+        num_samples = 10000
         decoder = model.decode
         res = {}
         test_samples = int(np.sqrt(num_samples))
@@ -143,16 +170,3 @@ class Evaluate:
                                           reduction="none")
             res[f"H_xCz/{i}"] = loss.mean(0).cpu()
         return res
-
-    def evaluate(self, model) -> None:
-        model.eval()
-        dic_log = {}
-        # dic_log.update(self.compute_H_xCz(model, 'cuda'))
-        dic_log.update(self.estimate_decomposition(model, self.dl))
-        model.cpu()
-
-        dic_log.update(self.visualize_model(model))
-        dic_log.update(self.compute_mig(model))
-        wandb.log(dic_log)
-        model.cuda()
-        model.train()
