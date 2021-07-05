@@ -123,13 +123,14 @@ def evaluate(model_dir,
             gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
                 "'", ""))
     dataset = named_data.get_named_ground_truth_data()
+    shape = dataset.observation_shape
 
 
     # Using the learned distribution (mu, std) instead of the model
     # variables = np.load(os.path.join(model_dir, 'representation.npy'), allow_pickle=True)
     # variables = variables[()]
     # distributions = concat_representation(dataset, variables)
-    model = get_model(model_dir)
+    model = get_model(model_dir, img_shape=[shape[2], shape[0], shape[1]])
     _encode, _decoder = convert_model(model)
 
     def fn(distribute):

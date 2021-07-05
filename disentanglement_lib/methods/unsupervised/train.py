@@ -94,7 +94,7 @@ class Train(pl.LightningModule):
         self.save_hyperparameters(config_dict())
         self.opt_name = opt_name
         self.data = named_data.get_named_ground_truth_data(dataset)
-        self.eval_callbacks = [f() for f in eval_callbacks]
+        self.eval_callbacks = [f() if isinstance(f, evaluate.Evaluation) else f for f in eval_callbacks]
 
         img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
         # img_shape = [1,64,64]
