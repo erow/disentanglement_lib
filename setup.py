@@ -39,7 +39,7 @@ setup(
         'bin/dlib_visualize_model',
         'bin/dlib_tests',
         'bin/dlib_download_data',
-        'bin.dlib_run'
+        'bin/dlib_run'
     ],
     install_requires=[
         'future',
