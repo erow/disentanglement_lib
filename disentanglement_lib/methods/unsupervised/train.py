@@ -117,6 +117,7 @@ class Train(pl.LightningModule):
 
         x, y = batch
         loss, summary = self.ae.model_fn(x.float(), y, self.global_step)
+        self.global_step += 1
         self.log_dict(summary)
         return loss
 

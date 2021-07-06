@@ -64,6 +64,7 @@ class BaseVAE(GaussianModel, nn.Module):
     def model_fn(self, features, labels, global_step):
         """Training compatible model function."""
         self.summary = {}
+        self.global_step = global_step
         z_mean, z_logvar = self.encode(features)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
 
@@ -90,7 +91,6 @@ class BaseVAE(GaussianModel, nn.Module):
         for i in range(kl.shape[0]):
             self.summary[f"kl/{i}"] = kl[i]
 
-        global_step += 1
         return loss, self.summary
 
     def forward(self, x):
