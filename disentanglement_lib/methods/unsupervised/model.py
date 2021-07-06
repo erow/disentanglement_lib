@@ -455,7 +455,7 @@ class CascadeVAEC(Regularizer):
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         global_step = model.global_step
-        self.stage = min(global_step // self.stage_steps, len(self.betas) - 1)
+        self.stage = min(global_step // self.stage_steps, model.num_latent-1)
         weight = torch.ones_like(kl) * self.beta_min
         weight[self.stage + 1:] = self.beta_max
         kl_loss = (weight * kl).sum()
