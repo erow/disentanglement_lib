@@ -170,3 +170,35 @@ class H_xCz(Evaluation):
                                           reduction="none")
             res[f"H_xCz/{i}"] = loss.mean(0).cpu()
         return res
+
+
+@gin.configurable('eval_cmi')
+class FactorMI(Evaluation):
+    def compute(self, model, train_dl=None):
+        """
+        reference: https://github.com/rtqichen/beta-tcvae/blob/master/elbo_decomposition.py
+        :param model:
+        :param dataset_loader:
+        :return: dict(): TC, MI, DWKL
+        """
+        dataset_loader = train_dl if train_dl else self.dl
+        N = len(dataset_loader.dataset)  # number of data samples
+        K = model.num_latent  # number of latent variables
+        S = 1  # number of latent variable samples
+        nparams = 2
+        qz_params = torch.Tensor(N, K, nparams)
+        y = np.zeros((N, train_dl.dataset.num_factors), dtype=np.int)
+        n = 0
+        for samples in dataset_loader:
+            xs, labels = samples
+            batch_size = xs.size(0)
+            xs = xs.view(batch_size, -1, 64, 64).cuda()
+            mu, logvar = model.encode(xs)
+            qz_params[n:n + batch_size, :, 0] = mu.data.cpu()
+            qz_params[n:n + batch_size, :, 1] = logvar.data.cpu()
+            y[n:n + batch_size] = labels
+            n += batch_size
+
+        from disentanglement_lib.evaluation.metrics import RMIG
+        log = RMIG.estimate_JEMMIG_cupy(qz_params[..., 0].numpy(), qz_params[..., 1].numpy(), y)
+        return log

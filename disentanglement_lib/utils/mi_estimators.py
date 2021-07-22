@@ -55,6 +55,7 @@ def estimate_entropies(qz_samples, qz_params, samples=10000):
     while k < S:
         batch_size = min(10, S - k)
         params = all_params[:, :, k:k + batch_size]
+        # (N, K, S)
         logqz_i = gaussian_log_density(
             qz_samples.view(1, K, S).expand(N, K, S)[:, :, k:k + batch_size],
             params[..., 0], params[..., 1])
