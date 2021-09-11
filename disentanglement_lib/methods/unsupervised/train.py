@@ -19,14 +19,15 @@ from __future__ import division
 from __future__ import print_function
 import os
 import time
-from disentanglement_lib.methods.unsupervised import evaluate
+
+from pytorch_lightning.core.datamodule import LightningDataModule
+from pytorch_lightning.utilities.cli import LightningCLI
 
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
 from disentanglement_lib.methods.shared import losses
-from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
-from disentanglement_lib.methods.unsupervised import model  # pylint: disable=unused-import
+from disentanglement_lib.methods.unsupervised import model 
 
 import numpy as np
 import logging
@@ -40,9 +41,6 @@ import gin
 import pathlib, shutil
 import wandb
 
-from disentanglement_lib.methods.unsupervised.model import BaseVAE
-
-
 def config_dict():
     configuration_object = gin.config._CONFIG
     macros = {}
@@ -52,7 +50,25 @@ def config_dict():
             macros[f"{selector1}.{k}"] = v
     return macros
 
+class DataModule(LightningDataModule):
+    def __init__(self, dataset="dsprites_tiny", batch_size=256):
+        super().__init__()
+        self.dataset = named_data.get_named_ground_truth_data(dataset)
+        obs_np = self.dataset.observation_shape
+        self._dims = obs_np[2], obs_np[0], obs_np[1]
+        self.batch_size = batch_size
+        
+    # def add_argparse_args(self, parser):
+    def add_arguments_to_parser(self, parser):
+        parser.add_argument('dataset_test',default=20,type=int)
 
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.dataset, num_workers=4,
+                                           shuffle=True, batch_size=self.batch_size, pin_memory=True)
+
+    def val_dataloader(self):
+        return self.train_dataloader()
+        
 @gin.configurable("train", blacklist=[])
 class Train(pl.LightningModule):
     """Trains the estimator and exports the snapshot and the gin config.
@@ -71,79 +87,49 @@ class Train(pl.LightningModule):
     """
 
     def __init__(self,
-                 dataset=gin.REQUIRED,
-                 model=BaseVAE,
-                 training_steps=gin.REQUIRED,
-                 random_seed=gin.REQUIRED,
-                 batch_size=gin.REQUIRED,
-                 opt_name=torch.optim.Adam,
-                 lr=5e-4,
-                 eval_callbacks=[],
-                 name="",
-                 dir=None,
-                 model_num=None):
+                 img_shape = [1, 64, 64]):
         super().__init__()
-        self.dir = wandb.run.dir if dir is None else dir
-        self.training_steps = training_steps
-        self.random_seed = random_seed
-        self.batch_size = batch_size
-        self.lr = lr
-        self.name = name
-        self.model_num = model_num
-
         self.save_hyperparameters(config_dict())
-        self.opt_name = opt_name
-        self.data = named_data.get_named_ground_truth_data(dataset)
-        self.eval_callbacks = [f() for f in eval_callbacks]
-
-        img_shape = np.array(self.data.observation_shape)[[2, 0, 1]].tolist()
-        # img_shape = [1,64,64]
-        self.ae = model(img_shape)
-
-    @torch.no_grad()
-    def evaluate(self, model):
-        dl = self.train_dataloader()
-        eval_result = {}
-        for evaluator in self.eval_callbacks:
-            eval_result.update(evaluator(model, dl, self.global_step))
-
-        if eval_result:
-            wandb.log(eval_result)
-
+        self.ae = model.BaseVAE(img_shape)
+ 
     def training_step(self, batch, batch_idx):
-        self.ae.eval()
-        self.evaluate(self.ae, )
-        self.ae.train()
-
         x, y = batch
         loss, summary = self.ae.model_fn(x.float(), y, self.global_step)
         # self.global_step += 1
         self.log_dict(summary)
         return loss
-
-    def train_dataloader(self) -> DataLoader:
-        dl = DataLoader(self.data,
-                        batch_size=self.batch_size,
-                        num_workers=4,
-                        shuffle=True,
-                        pin_memory=True)
-        return dl
-
+        
     def configure_optimizers(self):
-        optimizer = self.opt_name(self.parameters(), lr=self.lr)
-        return optimizer
+        return torch.optim.Adam(self.parameters())
+ 
 
-    def save_model(self, file, dir=None):
-        if dir is None:
-            dir = str(self.dir)
+    def save_model(self, file, dir):
         file_path = os.path.join(dir, file)
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
         torch.save(self.ae.state_dict(), file_path)
-        wandb.save(file_path)
 
+class MyLightningCLI(LightningCLI):
+    def __init__(self,override_args=None, **kwargs, ) -> None:
+        self.override_args=[] if override_args is None else override_args
+        super().__init__(**kwargs)
+        
+    def add_arguments_to_parser(self, parser):
+        parser.add_optimizer_args(torch.optim.Adam)
 
+    # def parse_arguments(self) -> None:
+    #     """Parses command line arguments and stores it in self.config"""
+    #     self.config = self.parser.parse_args(self.override_args)
+
+    def instantiate_trainer(self) -> None:
+        """Implement to run some code before instantiating the classes"""
+        logger = self.config_init['trainer'].get('logger')
+        print('init', logger.experiment)
+        super().instantiate_trainer()
+        
+# note: 未实现, trainer_args model_dir
 def train_with_gin(model_dir,
                    overwrite=False,
+                   trainer_args = None,
                    gin_config_files=None,
                    gin_bindings=None):
     """Trains a model based on the provided gin configuration.
@@ -161,45 +147,26 @@ def train_with_gin(model_dir,
         gin_config_files = []
     if gin_bindings is None:
         gin_bindings = []
+    
+    gin.clear_config()
     gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
     logging.info(gin.operative_config_str())
+    # model_path = pathlib.Path(model_dir)
+    # # Delete the output directory if it already exists.
+    # if model_path.exists():
+    #     if overwrite:
+    #         shutil.rmtree(model_path)
+    #     else:
+    #         raise FileExistsError("Directory already exists and overwrite is False.")
+    # model_path.mkdir(parents=True, exist_ok=True)
 
-    from pytorch_lightning.loggers import WandbLogger
-    logger = WandbLogger()
-
-    model_path = pathlib.Path(model_dir)
-    # Delete the output directory if it already exists.
-    if model_path.exists():
-        if overwrite:
-            shutil.rmtree(model_path)
-        else:
-            raise FileExistsError("Directory already exists and overwrite is False.")
-    model_path.mkdir(parents=True, exist_ok=True)
-
-    gpus = torch.cuda.device_count()
-    print(logger.experiment.url)
-    logger.experiment.save(model.__file__, os.path.dirname(model.__file__))
-    pl_model = Train()
-    if gpus > 0:
-        trainer = pl.Trainer(logger,
-                             progress_bar_refresh_rate=0,  # disable progress bar
-                             max_steps=pl_model.training_steps,
-                             checkpoint_callback=False,
-                             gpus=1,
-                             default_root_dir=model_dir)
-    else:
-        trainer = pl.Trainer(logger,
-                             progress_bar_refresh_rate=0,
-                             max_steps=pl_model.training_steps,
-                             checkpoint_callback=False,
-                             tpu_cores=8,
-                             default_root_dir=model_dir)
-
-    trainer.fit(pl_model)
-    pl_model.save_model('model.pt', model_dir)
-    from disentanglement_lib.utils.results import save_gin
-    save_gin(f"{model_dir}/train.gin")
-    wandb.save(f"{model_dir}/train.gin", base_path=model_dir)
-
-    gin.clear_config()
-    return pl_model
+    cli = MyLightningCLI(
+        override_args=trainer_args,
+        model_class=Train,
+        datamodule_class = DataModule,
+        save_config_callback=None,
+        env_parse=True,
+        parser_kwargs={
+            "default_config_files": ["cli_training.yaml", "/etc/cli_training.yaml"],
+            })
+    return cli.model

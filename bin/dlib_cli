@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+# coding=utf-8
+# https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+from pytorch_lightning.core.datamodule import LightningDataModule
+from disentanglement_lib.methods.unsupervised.train import DataModule, MyLightningCLI, Train
+from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
+
+import os
+import argparse
+import pathlib
+import shutil
+import gin
+
+from pytorch_lightning.utilities.cli import LightningCLI
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import CSVLogger, LightningLoggerBase
+import torch
+
+
+
+
+if __name__ == '__main__':
+    gin_file = './model.gin'
+    if os.path.exists(gin_file):
+        from disentanglement_lib.evaluation import evaluate
+        gin.parse_config_file(gin_file, True)
+
+    cli = MyLightningCLI(
+        model_class=Train,
+        datamodule_class = DataModule,
+        env_parse=True,
+        parser_kwargs={
+            "default_config_files": ["cli_training.yaml", "/etc/cli_training.yaml"],
+            })
+    

@@ -32,7 +32,7 @@ def compute_mig(ground_truth_data,
                 representation_function,
                 random_state,
                 artifact_dir=None,
-                num_train=gin.REQUIRED,
+                num_train=10000,
                 batch_size=16):
     """Computes the mutual information gap.
 

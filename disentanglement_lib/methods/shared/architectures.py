@@ -109,12 +109,12 @@ class conv_encoder(nn.Module):
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.net = nn.Sequential(
-            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 32x32
-            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 16
-            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 8
-            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.LeakyReLU(),  # 4
+            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
+            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
+            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
+            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
             nn.Flatten(),
-            nn.Linear(4 * 4 * base_channel * 2, 256), nn.LeakyReLU(),
+            nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
             nn.Linear(256, num_latent * 2)
         )
 
@@ -174,12 +174,17 @@ class deconv_decoder(nn.Module):
         self.num_latent = num_latent
         self.output_shape = output_shape
         self.net = nn.Sequential(
-            nn.Linear(num_latent, 256), nn.LeakyReLU(),
-            nn.Linear(256, 1024), nn.LeakyReLU(),
+            nn.Linear(num_latent, 256), nn.ReLU(),
+            nn.BatchNorm1d(256),
+            nn.Linear(256, 1024), nn.ReLU(),
+            nn.BatchNorm1d(1024),
             View([-1, 64, 4, 4]),
-            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
-            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
+            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(),  # 8
+            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),  # 16
+            nn.BatchNorm2d(32),
+            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.ReLU(),  # 32
+            nn.BatchNorm2d(4),
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
 
@@ -212,12 +217,12 @@ class fc_discriminator(nn.Module):
         self.num_latent = num_latent
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(num_latent, 1000), nn.LeakyReLU(),
-            nn.Linear(1000, 1000), nn.LeakyReLU(),
-            nn.Linear(1000, 1000), nn.LeakyReLU(),
-            nn.Linear(1000, 1000), nn.LeakyReLU(),
-            nn.Linear(1000, 1000), nn.LeakyReLU(),
-            nn.Linear(1000, 1000), nn.LeakyReLU(),
+            nn.Linear(num_latent, 1000), nn.ReLU(),
+            nn.Linear(1000, 1000), nn.ReLU(),
+            nn.Linear(1000, 1000), nn.ReLU(),
+            nn.Linear(1000, 1000), nn.ReLU(),
+            nn.Linear(1000, 1000), nn.ReLU(),
+            nn.Linear(1000, 1000), nn.ReLU(),
             nn.Linear(1000, 2)
         )
 
@@ -297,20 +302,18 @@ class lite_decoder(nn.Module):
         self.num_latent = num_latent
         self.output_shape = output_shape
         self.net = nn.Sequential(
-            nn.Linear(num_latent, 256), nn.LeakyReLU(),
-            nn.Linear(256, 256), nn.LeakyReLU(),
+            nn.Linear(num_latent, 256), nn.ReLU(),
+            nn.Linear(256, 256), nn.ReLU(),
             View([-1, 16, 4, 4]),
-            nn.ConvTranspose2d(16, 16, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
-            nn.ConvTranspose2d(16, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
-            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
+            nn.ConvTranspose2d(16, 16, 4, stride=2, padding=1), nn.ReLU(),  # 8
+            nn.ConvTranspose2d(16, 32, 4, stride=2, padding=1), nn.ReLU(),  # 16
+            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.ReLU(),  # 32
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
 
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
         return torch.reshape(x, shape=[-1] + self.output_shape)
-
-
 @gin.configurable("deep_decoder", allowlist=[])
 class DeepConvDecoder(nn.Module):
     def __init__(self, num_latent, output_shape, width=256):
@@ -327,7 +330,7 @@ class DeepConvDecoder(nn.Module):
             return layers
 
         self.convert_2d = nn.Sequential(
-            nn.Linear(num_latent, width * 2), nn.LeakyReLU(0.02),
+            nn.Linear(num_latent, width * 2), nn.ReLU(0.02),
             nn.Linear(width * 2, 4 * 4 * width),
         )
 
@@ -344,7 +347,7 @@ class DeepConvDecoder(nn.Module):
         c_in = c_in // 2
 
         conv_blocks = conv_blocks + [
-            nn.LeakyReLU(0.02),
+            nn.ReLU(0.02),
             nn.Conv2d(c_in, c, (5, 5), padding=2)
         ]
         # same channel
@@ -373,14 +376,14 @@ class DeepConvEncoder(nn.Module):
             return layers
 
         self.convert_1d = nn.Sequential(
-            nn.Linear(4 * 4 * width, width * 2), nn.LeakyReLU(0.02),
+            nn.Linear(4 * 4 * width, width * 2), nn.ReLU(0.02),
             nn.LayerNorm(width * 2),
             nn.Linear(width * 2, num_latent * 2)
         )
 
         c, h, w = input_shape
         conv_blocks = [
-            nn.Conv2d(c, 64, 5, 2, padding=2), nn.LeakyReLU(0.02)
+            nn.Conv2d(c, 64, 5, 2, padding=2), nn.ReLU(0.02)
         ]
 
         ch, cw = h // 2, w // 2
@@ -412,9 +415,9 @@ class Discriminator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(int(np.prod(img_shape)), 512),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.ReLU(0.2, inplace=True),
             nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.ReLU(0.2, inplace=True),
             nn.Linear(256, 1),
             nn.Sigmoid(),
         )
@@ -424,3 +427,49 @@ class Discriminator(nn.Module):
         validity = self.model(img_flat)
 
         return validity
+
+@gin.configurable("frac_encoder", allowlist=[])
+class FracEncoder(nn.Module):
+    def __init__(self,
+                input_shape,
+                num_latent,
+                gamma=0.1, G=5):
+        super().__init__()
+        self.G=G
+        self.num_latent = num_latent
+        assert num_latent%G==0
+        self.K=num_latent//G
+        self.gamma = gamma
+        self.encoders = nn.Sequential(
+            *[conv_encoder(input_shape, self.K,8) for _ in range(G)])
+        self.stage = 0
+        
+    def set_stage(self, i):
+        self.stage = i
+
+    def grad_recay(self, grad):
+        return grad * self.gamma
+
+    def forward(self, x):
+        mus, logvars = [], []
+
+        for i in range(self.G):
+            f = self.encoders[i]
+            if i<self.stage:
+                mu, logvar = f(x)
+                if mu.requires_grad:
+                    mu.register_hook(self.grad_recay)
+                    logvar.register_hook(self.grad_recay)
+                mus.append(mu)
+                logvars.append(logvar)
+            elif i ==self.stage:
+                mu, logvar = f(x)
+                mus.append(mu)
+                logvars.append(logvar)
+            else:
+                mus.append(torch.zeros_like(mu))
+                logvars.append(torch.zeros_like(mu))
+        
+        mu = torch.cat(mus,1)
+        logvar = torch.cat(logvars,1)
+        return mu, logvar

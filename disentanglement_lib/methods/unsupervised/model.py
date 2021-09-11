@@ -21,6 +21,7 @@ representations.
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import logging
 import math
 import os
 from argparse import ArgumentParser
@@ -35,17 +36,22 @@ from torch import nn
 from torch.nn import functional as F
 import gin
 
-from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
-
 
 def BernoulliH(p):
     p = torch.clamp(p, 1e-6, 1 - 1e-6)
     h = p * (p).log() + (1 - p) * (1 - p).log()
     return -h
 
+def sample_from_latent_distribution(z_mean, z_logvar):
+        """Samples from the Gaussian distribution defined by z_mean and z_logvar."""
+        e = torch.randn_like(z_mean)
+        return torch.add(
+            z_mean,
+            torch.exp(z_logvar / 2) * e,
+        )
 
 @gin.configurable("model")
-class BaseVAE(GaussianModel, nn.Module):
+class BaseVAE(nn.Module):
     """Abstract base class of a basic Gaussian encoder model."""
 
     def __init__(self, input_shape,
@@ -66,7 +72,7 @@ class BaseVAE(GaussianModel, nn.Module):
         self.summary = {}
         self.global_step = global_step
         z_mean, z_logvar = self.encode(features)
-        z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
+        z_sampled = sample_from_latent_distribution(z_mean, z_logvar)
 
         self.z_sampled = z_sampled
         reconstructions = self.decode(z_sampled)
@@ -472,7 +478,7 @@ class Annealing(Regularizer):
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         beta = max(self.beta - self.delta, 1)
-        self.summary['beta'] = beta
+        model.summary['beta'] = beta
         self.beta = beta
         return beta * (kl.sum())
 
@@ -481,32 +487,21 @@ class Annealing(Regularizer):
 class DEFT(Regularizer):
     def __init__(self,
                  stage_steps=gin.REQUIRED,
-                 betas=gin.REQUIRED,
-                 group_size=2,
-                 gamma=0.1):
+                 betas=gin.REQUIRED,):
         super().__init__()
         self.betas = betas
-        self.gamma = gamma
-        self.group_size = group_size
         self.stage_steps = stage_steps
-
-    def z_hook(self, grad):
-        grad[:, :self.stage * self.group_size] *= self.gamma
-        grad[:, self.group_size * (self.stage + 1):] = 0
-        return grad
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         """Training compatible model function."""
         global_step = model.global_step
         self.stage = min(global_step // self.stage_steps, len(self.betas) - 1)
         if global_step % self.stage_steps == 0:
-            print(self.stage)
+            model.encode.set_stage(self.stage) 
+            print('stage', self.stage)
 
         beta = self.betas[self.stage]
-        self.summary['beta'] = beta
-        # z_sampled.register_hook(self.z_hook)
-        # z_mean.register_hook(self.z_hook)
-        # z_logvar.register_hook(self.z_hook)
+        model.summary['beta'] = beta
         return beta * (kl.sum())
 
 
@@ -546,7 +541,7 @@ class DecoderReg(Regularizer):
             reconstructions = self.get_decoder(i)(r).detach()
             per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
             reg_recon = torch.mean(per_sample_loss)
-            self.summary[f'reg_recon/{i}'] = reg_recon
+            model.summary[f'reg_recon/{i}'] = reg_recon
             # reg_loss1 = reg_recon + kl[:i + 1].sum()
             # print(loss,reg_loss,self.alpha)
             # reg_loss = reg_loss + reg_loss1 * pow(self.alpha, i)
@@ -564,10 +559,10 @@ class DecoderReg(Regularizer):
         for i in range(1, H_xCz.size(0)):
             reg_loss = reg_loss + H_xCz[i, i > gap_indices].sum()
 
-        self.summary["reg_loss"] = reg_loss
+        model.summary["reg_loss"] = reg_loss
 
         for i, max_gap in enumerate(H_gap.max(1)[1]):
-            self.summary[f"H_gap/{i}"] = max_gap.item()
+            model.summary[f"H_gap/{i}"] = max_gap.item()
         if self.alpha == 1:
             s = self.num_latent
         else:

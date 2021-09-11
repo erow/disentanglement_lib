@@ -78,7 +78,7 @@ def l2_loss(true_images, reconstructed_images, activation):
     "reconstruction_loss", denylist=["true_images", "reconstructed_images"])
 def make_reconstruction_loss(true_images,
                              reconstructed_images,
-                             loss_fn=gin.REQUIRED,
+                             loss_fn=bernoulli_loss,
                              activation="logits"):
     """Wrapper that creates reconstruction loss."""
     per_sample_loss = loss_fn(true_images, reconstructed_images, activation)
