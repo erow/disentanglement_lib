@@ -141,10 +141,12 @@ class Visualization(Callback):
 
     def compute(self, model, train_dl) -> dict:
         from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
+        model.cpu()
         _encoder, _decoder = convert_model(model)
         num_latent = model.num_latent
         mu = torch.zeros(1, num_latent)
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
+        model.cuda()
         return {'traversal': wandb.Image(fig)}
 
 
