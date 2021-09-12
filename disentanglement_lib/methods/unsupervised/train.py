@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from disentanglement_lib.methods.shared.architectures import FracEncoder
 import os
 import time
 
@@ -87,20 +88,29 @@ class Train(pl.LightningModule):
     """
 
     def __init__(self,
-                 img_shape = [1, 64, 64]):
+                 img_shape = [1, 64, 64],
+                 **kwargs):
         super().__init__()
         self.save_hyperparameters(config_dict())
         self.ae = model.BaseVAE(img_shape)
+        self.automatic_optimization = False
  
     def training_step(self, batch, batch_idx):
+        opt = self.optimizers()
+        opt.zero_grad()
+        
         x, y = batch
         loss, summary = self.ae.model_fn(x.float(), y, self.global_step)
         # self.global_step += 1
         self.log_dict(summary)
-        return loss
+        # return loss
+        self.manual_backward(loss)
+        if isinstance(self.ae.encode, FracEncoder):
+            self.ae.encode.grad_modify()
+        opt.step()
         
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters())
+        return torch.optim.Adam(self.parameters(),1e-3)
  
 
     def save_model(self, file, dir):
