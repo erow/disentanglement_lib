@@ -17,7 +17,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from disentanglement_lib.methods.shared.architectures import FracEncoder
 import os
 import time
 
@@ -27,7 +26,7 @@ from pytorch_lightning.utilities.cli import LightningCLI
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
-from disentanglement_lib.methods.shared import losses
+from disentanglement_lib.methods.shared import architectures, losses
 from disentanglement_lib.methods.unsupervised import model 
 
 import numpy as np
@@ -70,7 +69,8 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         return self.train_dataloader()
         
-@gin.configurable("train", blacklist=[])
+
+@gin.configurable("model", blacklist=[])
 class Train(pl.LightningModule):
     """Trains the estimator and exports the snapshot and the gin config.
 
@@ -88,35 +88,73 @@ class Train(pl.LightningModule):
     """
 
     def __init__(self,
-                 img_shape = [1, 64, 64],
+                 input_shape = [1, 64, 64],
+                 num_latent=10,
+                 encoder_fn=architectures.conv_encoder,
+                 decoder_fn=architectures.deconv_decoder,
+                 regularizers=[],
                  **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.save_hyperparameters(config_dict())
-        self.ae = model.BaseVAE(img_shape)
-        self.automatic_optimization = False
+        self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
+        self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
+        self.num_latent = num_latent
+        self.input_shape = input_shape
+        self.summary = {}
+        if isinstance(regularizers,list):
+            self.regularizers = nn.Sequential(*[i() for i in regularizers])
+        else:
+            self.regularizers = nn.Sequential(regularizers())
+
  
     def training_step(self, batch, batch_idx):
-        opt = self.optimizers()
-        opt.zero_grad()
-        
         x, y = batch
-        loss, summary = self.ae.model_fn(x.float(), y, self.global_step)
+        loss, summary = self.model_fn(x.float(), y, self.global_step)
         # self.global_step += 1
         self.log_dict(summary)
-        # return loss
-        self.manual_backward(loss)
-        if isinstance(self.ae.encode, FracEncoder):
-            self.ae.encode.grad_modify()
-        opt.step()
+        return loss
         
+    
+    def model_fn(self, features, labels, global_step):
+        """Training compatible model function."""
+        self.summary = {}
+        z_mean, z_logvar = self.encode(features)
+        z_sampled = model.sample_from_latent_distribution(z_mean, z_logvar)
+
+        self.z_sampled = z_sampled
+        reconstructions = self.decode(z_sampled)
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+        reconstruction_loss = torch.mean(per_sample_loss)
+        self.summary['reconstruction_loss'] = reconstruction_loss
+
+        kl = model.compute_gaussian_kl(z_mean, z_logvar)
+        kl_loss = kl.sum()
+        self.summary['kl_loss'] = kl_loss
+
+        regularizer_loss = 0
+        for regularizer in self.regularizers:
+            regularizer_loss = regularizer_loss + regularizer((features, labels), self, kl, z_mean, z_logvar, z_sampled)
+
+        loss = reconstruction_loss + regularizer_loss
+        elbo = torch.add(reconstruction_loss, kl_loss)
+
+        self.summary['elbo'] = -elbo
+        self.summary['loss'] = loss
+
+        for i in range(kl.shape[0]):
+            self.summary[f"kl/{i}"] = kl[i]
+
+        return loss, self.summary
+
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(),1e-3)
+        return torch.optim.Adam(self.parameters(),5e-4)
  
 
     def save_model(self, file, dir):
         file_path = os.path.join(dir, file)
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
         torch.save(self.ae.state_dict(), file_path)
+
 
 class MyLightningCLI(LightningCLI):
     def __init__(self,override_args=None, **kwargs, ) -> None:

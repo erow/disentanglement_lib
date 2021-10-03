@@ -25,6 +25,40 @@ import torch
 
 
 class ArchitecturesTest(parameterized.TestCase):
+    
+    @parameterized.parameters(0,0.1,1)
+    def test_deft(self,gamma):
+        encoder1 = architectures.FracEncoder([1,64,64],10,gamma)
+        encoder2 = architectures.FracEncoder([1,64,64],10,1)
+        encoder1.stage=1
+        encoder1.load_state_dict(encoder2.state_dict())
+
+        x1 = torch.rand([1,1,64,64])
+        x2 = x1.clone()
+        x1.requires_grad_(True)
+        x2.requires_grad_(True)
+        e = torch.randn(1,10)
+
+        # forward
+        mu, logvar = encoder1(x1)
+        z = e*logvar.exp() + mu
+        kl = (mu**2 + logvar.exp()-logvar).mean()
+        ((z*e).sum()+kl).backward()
+
+        mu, logvar = encoder2(x2)
+        z = e*logvar.exp() + mu
+        kl = (mu**2 + logvar.exp()-logvar).mean()
+        ((z*e).sum()+kl).backward()
+
+        # check
+        c1 = encoder1.encoders[0].net
+        c2 = encoder2.encoders[0].net
+        error = 0
+        for p1,p2 in zip(c1.parameters(),c2.parameters()):
+            error += (p1.grad-p2.grad*gamma).abs().sum()
+        print(error)
+        assert error<1e-5
+
 
     @parameterized.named_parameters(
         ('fc_encoder', architectures.fc_encoder),

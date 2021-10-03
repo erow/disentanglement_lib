@@ -450,14 +450,6 @@ class FracEncoder(nn.Module):
     def grad_recay(self, grad):
         return grad * self.gamma
 
-    def grad_modify(self):
-        for i in range(self.G):
-            f = self.encoders[i]
-            if i<self.stage:
-                for p in f.parameters():
-                    p.grad *= self.gamma
-
-
     def forward(self, x):
         mus, logvars = [], []
 
@@ -465,11 +457,9 @@ class FracEncoder(nn.Module):
             f = self.encoders[i]
             if i<self.stage:
                 mu, logvar = f(x)
-                # if mu.requires_grad:
-                #     mu1=mu.clone()
-                #     logvar1=logvar.clone()
-                #     mu1.register_hook(self.grad_recay)
-                #     logvar1.register_hook(self.grad_recay)
+                if mu.requires_grad:
+                    mu.register_hook(self.grad_recay)
+                    logvar.register_hook(self.grad_recay)
                 mus.append(mu)
                 logvars.append(logvar)
             elif i ==self.stage:

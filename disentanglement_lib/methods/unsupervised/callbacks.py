@@ -15,18 +15,32 @@ from disentanglement_lib.utils.hub import convert_model
 from disentanglement_lib.utils.mi_estimators import estimate_entropies
 import torch.nn.functional as F
 
+class Evaluation(Callback):
+    def __init__(self, every_n_step):
+        self.every_n_step = every_n_step
 
+    def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
+            if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
+                log = self.compute(pl_module, trainer.train_dataloader)
+                wandb.log(log, step=trainer.global_step)
+                
+    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        log = self.compute(pl_module, trainer.train_dataloader)
+        wandb.log(log, step=trainer.global_step)
+    
+    def compute(self, model, train_dl=None):
+        raise NotImplementedError()
 class Decomposition(Callback):
     def __init__(self, every_n_step):
         self.every_n_step = every_n_step
 
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module.ae, trainer.train_dataloader)
+        log = self.compute(pl_module, trainer.train_dataloader)
         trainer.logger.log_metrics(log, step=trainer.global_step)
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module.ae, trainer.train_dataloader)
+            log = self.compute(pl_module, trainer.train_dataloader)
             trainer.logger.log_metrics(log, step=trainer.global_step)
 
     def compute(self, model, train_dl=None):
@@ -107,12 +121,12 @@ class ComputeMetric(Callback):
         self.every_n_step = every_n_step
 
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module.ae, trainer.train_dataloader)
+        log = self.compute(pl_module, trainer.train_dataloader)
         trainer.logger.log_metrics(log, step=trainer.global_step)
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module.ae, trainer.train_dataloader)
+            log = self.compute(pl_module, trainer.train_dataloader)
             trainer.logger.log_metrics(log, step=trainer.global_step)
 
     @torch.no_grad()
@@ -131,12 +145,12 @@ class Visualization(Callback):
         self.every_n_step = every_n_step
 
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module.ae, trainer.train_dataloader)
+        log = self.compute(pl_module, trainer.train_dataloader)
         trainer.logger.log_metrics(log, step=trainer.global_step)
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module.ae, trainer.train_dataloader)
+            log = self.compute(pl_module, trainer.train_dataloader)
             wandb.log(log, step=trainer.global_step)
 
     def compute(self, model, train_dl) -> dict:

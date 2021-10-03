@@ -50,57 +50,6 @@ def sample_from_latent_distribution(z_mean, z_logvar):
             torch.exp(z_logvar / 2) * e,
         )
 
-@gin.configurable("model")
-class BaseVAE(nn.Module):
-    """Abstract base class of a basic Gaussian encoder model."""
-
-    def __init__(self, input_shape,
-                 num_latent=10,
-                 encoder_fn=architectures.conv_encoder,
-                 decoder_fn=architectures.deconv_decoder,
-                 regularizers=[]):
-        super().__init__()
-        self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
-        self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
-        self.num_latent = num_latent
-        self.input_shape = input_shape
-        self.summary = {}
-        self.regularizers = nn.Sequential(*[i() for i in regularizers])
-
-    def model_fn(self, features, labels, global_step):
-        """Training compatible model function."""
-        self.summary = {}
-        self.global_step = global_step
-        z_mean, z_logvar = self.encode(features)
-        z_sampled = sample_from_latent_distribution(z_mean, z_logvar)
-
-        self.z_sampled = z_sampled
-        reconstructions = self.decode(z_sampled)
-        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
-        reconstruction_loss = torch.mean(per_sample_loss)
-        self.summary['reconstruction_loss'] = reconstruction_loss
-
-        kl = compute_gaussian_kl(z_mean, z_logvar)
-        kl_loss = kl.sum()
-        self.summary['kl_loss'] = kl_loss
-
-        regularizer_loss = 0
-        for regularizer in self.regularizers:
-            regularizer_loss = regularizer_loss + regularizer((features, labels), self, kl, z_mean, z_logvar, z_sampled)
-
-        loss = reconstruction_loss + regularizer_loss
-        elbo = torch.add(reconstruction_loss, kl_loss)
-
-        self.summary['elbo'] = -elbo
-        self.summary['loss'] = loss
-
-        for i in range(kl.shape[0]):
-            self.summary[f"kl/{i}"] = kl[i]
-
-        return loss, self.summary
-
-    def forward(self, x):
-        return self.reconstruct(x)
 
 
 class Regularizer(nn.Module):
@@ -206,9 +155,10 @@ class AnnealedVAE(Regularizer):
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         del z_mean, z_logvar, z_sampled
-        self.c = max(self.c_max, self.c + self.delta)
+        c = min(self.c_max, self.c + self.delta)
+        self.c += self.delta
         kl_loss = kl.sum()
-        return self.gamma * torch.abs(kl_loss - self.c)
+        return self.gamma * torch.abs(kl_loss - c)
 
 
 @gin.configurable("factor_vae")
@@ -497,7 +447,7 @@ class DEFT(Regularizer):
         global_step = model.global_step
         self.stage = min(global_step // self.stage_steps, len(self.betas) - 1)
         if global_step % self.stage_steps == 0:
-            model.encode.set_stage(self.stage) 
+            model.encode.set_stage(self.stage)
             print('stage', self.stage)
 
         beta = self.betas[self.stage]

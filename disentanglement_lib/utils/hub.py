@@ -3,10 +3,10 @@ import os
 import torch
 import gin
 
-from disentanglement_lib.methods.unsupervised.model import BaseVAE
+from disentanglement_lib.methods.unsupervised.train import Train
 
 
-def get_model(run, model_fun=BaseVAE,
+def get_model(run, model_fun=Train,
               device='cpu',
               conf="train.gin",
               model_file="model.pt",
