@@ -3,10 +3,10 @@ import os
 import torch
 import gin
 
-from disentanglement_lib.methods.unsupervised.train import Train
+from disentanglement_lib.methods.unsupervised.train import PLModel
 
 
-def get_model(run, model_fun=Train,
+def get_model(run, model_fun=PLModel,
               device='cpu',
               conf="train.gin",
               model_file="model.pt",

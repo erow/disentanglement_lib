@@ -6,7 +6,7 @@ from __future__ import division
 from __future__ import print_function
 
 from pytorch_lightning.core.datamodule import LightningDataModule
-from disentanglement_lib.methods.unsupervised.train import DataModule, MyLightningCLI, Train
+from disentanglement_lib.methods.unsupervised.train import DataModule , Train
 from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
 
 import os
@@ -15,12 +15,30 @@ import pathlib
 import shutil
 import gin
 
-from pytorch_lightning.utilities.cli import LightningCLI
+from pytorch_lightning.utilities.cli import LightningCLI, SaveConfigCallback
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CSVLogger, LightningLoggerBase
 import torch
 
 
+class MyLightningCLI(LightningCLI):
+    def __init__(self,override_args=None, **kwargs, ) -> None:
+        self.override_args=[] if override_args is None else override_args
+        super().__init__(**kwargs)
+        
+    def add_arguments_to_parser(self, parser):
+        parser.add_optimizer_args(torch.optim.Adam)
+
+    # def parse_arguments(self) -> None:
+    #     """Parses command line arguments and stores it in self.config"""
+    #     self.config = self.parser.parse_args(self.override_args)
+
+    def instantiate_trainer(self) -> None:
+        """Implement to run some code before instantiating the classes"""
+        logger = self.config_init['trainer'].get('logger')
+        print('init', logger.experiment)
+        super().instantiate_trainer()
+        
 
 
 if __name__ == '__main__':
@@ -33,6 +51,7 @@ if __name__ == '__main__':
         model_class=Train,
         datamodule_class = DataModule,
         env_parse=True,
+        save_config_callback=None,
         parser_kwargs={
             "default_config_files": ["cli_training.yaml", "/etc/cli_training.yaml"],
             })

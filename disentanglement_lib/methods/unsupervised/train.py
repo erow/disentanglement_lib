@@ -66,27 +66,10 @@ class DataModule(LightningDataModule):
         return torch.utils.data.DataLoader(self.dataset, num_workers=4,
                                            shuffle=True, batch_size=self.batch_size, pin_memory=True)
 
-    def val_dataloader(self):
-        return self.train_dataloader()
         
 
 @gin.configurable("model", blacklist=[])
-class Train(pl.LightningModule):
-    """Trains the estimator and exports the snapshot and the gin config.
-
-        The use of this function requires the gin binding 'dataset.name' to be
-        specified as that determines the data set used for training.
-
-        Args:
-          model: GaussianEncoderModel that should be trained and exported.
-          training_steps: Integer with number of training steps.
-          random_seed: Integer with random seed used for training.
-          batch_size: Integer with the batch size.
-          name: Optional string with name of the model (can be used to name models).
-          model_num: Optional integer with model number (can be used to identify
-            models).
-    """
-
+class PLModel(pl.LightningModule):
     def __init__(self,
                  input_shape = [1, 64, 64],
                  num_latent=10,
@@ -155,25 +138,24 @@ class Train(pl.LightningModule):
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
         torch.save(self.ae.state_dict(), file_path)
 
+    def convert(self, device='cpu'):
+        def _decoder(latent_vectors):
+            with torch.no_grad():
+                z = torch.FloatTensor(latent_vectors).to(device)
+                imgs = self.decode(z).cpu().sigmoid().numpy()
+                return imgs.transpose((0, 2, 3, 1))
 
-class MyLightningCLI(LightningCLI):
-    def __init__(self,override_args=None, **kwargs, ) -> None:
-        self.override_args=[] if override_args is None else override_args
-        super().__init__(**kwargs)
-        
-    def add_arguments_to_parser(self, parser):
-        parser.add_optimizer_args(torch.optim.Adam)
+        def _encoder(obs):
+            with torch.no_grad():
+                # if isinstance(obs,torch.Tensor):
+                obs = torch.FloatTensor(obs.transpose((0, 3, 1, 2))).to(device)  # convert tf format to torch's
+                mu, logvar = self.encode(obs)
+                mu, logvar = mu.cpu().numpy(), logvar.cpu().numpy()
+                return mu, logvar
 
-    # def parse_arguments(self) -> None:
-    #     """Parses command line arguments and stores it in self.config"""
-    #     self.config = self.parser.parse_args(self.override_args)
+        return _encoder, _decoder
 
-    def instantiate_trainer(self) -> None:
-        """Implement to run some code before instantiating the classes"""
-        logger = self.config_init['trainer'].get('logger')
-        print('init', logger.experiment)
-        super().instantiate_trainer()
-        
+
 # note: 未实现, trainer_args model_dir
 def train_with_gin(model_dir,
                    overwrite=False,

@@ -106,7 +106,7 @@ def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
         traversals = traversal_latents(base_latents, linear_traversal, dim)
         recon_batch = decode(traversals)
 
-        plot_bar(axes[i, :], sigmoid(recon_batch))
+        plot_bar(axes[i, :], recon_batch)
 
     return fig
 

@@ -29,17 +29,12 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     scripts=[
-        'bin/dlib_aggregate_results',
-        'bin/dlib_reproduce',
         'bin/dlib_visualize_dataset',
         'bin/dlib_evaluate',
-        'bin/dlib_postprocess',
-        'bin/dlib_train',
         'bin/dlib_visualize_dataset',
         'bin/dlib_visualize_model',
         'bin/dlib_tests',
         'bin/dlib_download_data',
-        'bin/dlib_run'
     ],
     install_requires=[
         'future',

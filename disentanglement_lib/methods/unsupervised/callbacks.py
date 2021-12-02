@@ -10,39 +10,28 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.evaluation.metrics import mig
-from disentanglement_lib.methods.unsupervised.model import gaussian_log_density
-from disentanglement_lib.utils.hub import convert_model
+from disentanglement_lib.methods.unsupervised.model import gaussian_log_density, sample_from_latent_distribution
+
 from disentanglement_lib.utils.mi_estimators import estimate_entropies
 import torch.nn.functional as F
 
 class Evaluation(Callback):
     def __init__(self, every_n_step):
         self.every_n_step = every_n_step
+        self.log={}
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-            if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
+            if (trainer.global_step+1) % self.every_n_step == 0:
                 log = self.compute(pl_module, trainer.train_dataloader)
+                self.log=log
                 wandb.log(log, step=trainer.global_step)
-                
-    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module, trainer.train_dataloader)
-        wandb.log(log, step=trainer.global_step)
-    
+
+    @torch.no_grad()
     def compute(self, model, train_dl=None):
         raise NotImplementedError()
-class Decomposition(Callback):
-    def __init__(self, every_n_step):
-        self.every_n_step = every_n_step
 
-    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module, trainer.train_dataloader)
-        trainer.logger.log_metrics(log, step=trainer.global_step)
-
-    def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module, trainer.train_dataloader)
-            trainer.logger.log_metrics(log, step=trainer.global_step)
-
+class Decomposition(Evaluation):
+    @torch.no_grad()
     def compute(self, model, train_dl=None):
         """
         reference: https://github.com/rtqichen/beta-tcvae/blob/master/elbo_decomposition.py
@@ -50,6 +39,9 @@ class Decomposition(Callback):
         :param dataset_loader:
         :return: dict(): TC, MI, DWKL
         """
+        device = model.device
+        model.eval()
+
         dataset_loader = train_dl if train_dl else self.dl
         N = len(dataset_loader.dataset)  # number of data samples
         K = model.num_latent  # number of latent variables
@@ -58,17 +50,17 @@ class Decomposition(Callback):
 
         print('Computing q(z|x) distributions.')
         # compute the marginal q(z_j|x_n) distributions
-        qz_params = torch.Tensor(N, K, nparams).cuda()
+        qz_params = torch.Tensor(N, K, nparams).to(device)
         n = 0
         for samples in dataset_loader:
             xs, _ = samples
             batch_size = xs.size(0)
-            xs = xs.view(batch_size, -1, 64, 64).cuda()
+            xs = xs.view(batch_size, -1, 64, 64).to(device)
             mu, logvar = model.encode(xs)
             qz_params[n:n + batch_size, :, 0] = mu.data
             qz_params[n:n + batch_size, :, 1] = logvar.data
             n += batch_size
-        z_sampled = model.sample_from_latent_distribution(
+        z_sampled = sample_from_latent_distribution(
             qz_params[..., 0], qz_params[..., 1])
 
         # pz = \sum_n p(z|n) p(n)
@@ -113,54 +105,46 @@ class Decomposition(Callback):
                    KL=analytical_cond_kl,
                    H_q_zCx=H_zCx,
                    H_q_z=H_qz)
+        model.train()
         return log
 
 
-class ComputeMetric(Callback):
-    def __init__(self, every_n_step):
+class ComputeMetric(Evaluation):
+    def __init__(self, every_n_step, metric_fn):
         self.every_n_step = every_n_step
-
-    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module, trainer.train_dataloader)
-        trainer.logger.log_metrics(log, step=trainer.global_step)
-
-    def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module, trainer.train_dataloader)
-            trainer.logger.log_metrics(log, step=trainer.global_step)
+        self.metric_fn = metric_fn
 
     @torch.no_grad()
     def compute(self, model, train_dl) -> dict:
+        device = model.device
+        model.eval()
         model.cpu()
-        _encoder, _decoder = convert_model(model, device='cpu')
+        _encoder, _decoder = model.convert()
+        
         dataset = train_dl.dataset.datasets
-        result = mig.compute_mig(dataset, lambda x: _encoder(x)[
+        result = self.metric_fn(dataset, lambda x: _encoder(x)[
                                  0], np.random.RandomState(), )
-        model.cuda()
+        model.to(device)
+        model.train()
         return result
 
 
-class Visualization(Callback):
+class Visualization(Evaluation):
     def __init__(self, every_n_step):
         self.every_n_step = every_n_step
 
-    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        log = self.compute(pl_module, trainer.train_dataloader)
-        trainer.logger.log_metrics(log, step=trainer.global_step)
-
-    def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            log = self.compute(pl_module, trainer.train_dataloader)
-            wandb.log(log, step=trainer.global_step)
-
+    @torch.no_grad()
     def compute(self, model, train_dl) -> dict:
         from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
+        device = model.device
+        model.eval()
         model.cpu()
-        _encoder, _decoder = convert_model(model)
+        _encoder, _decoder = model.convert()
         num_latent = model.num_latent
         mu = torch.zeros(1, num_latent)
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
-        model.cuda()
+        model.to(device)
+        model.train()
         return {'traversal': wandb.Image(fig)}
 
 
@@ -184,7 +168,7 @@ class Visualization(Callback):
 #         for samples in dataset_loader:
 #             xs, labels = samples
 #             batch_size = xs.size(0)
-#             xs = xs.view(batch_size, -1, 64, 64).cuda()
+#             xs = xs.view(batch_size, -1, 64, 64).to(device)
 #             mu, logvar = model.encode(xs)
 #             qz_params[n:n + batch_size, :, 0] = mu.data.cpu()
 #             qz_params[n:n + batch_size, :, 1] = logvar.data.cpu()
