@@ -23,7 +23,7 @@ import gin
 
 @gin.configurable(
     "unsupervised_metrics",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def unsupervised_metrics(ground_truth_data,
                          representation_function,

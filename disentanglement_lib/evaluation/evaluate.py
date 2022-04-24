@@ -81,7 +81,7 @@ def evaluate_with_gin(model_dir,
 
 
 @gin.configurable(
-    "evaluation", blacklist=["model_dir", "output_dir", "overwrite"])
+    "evaluation", denylist=["model_dir", "output_dir", "overwrite"])
 def evaluate(model_dir,
              output_dir,
              overwrite=False,

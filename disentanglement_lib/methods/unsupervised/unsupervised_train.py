@@ -48,7 +48,7 @@ from disentanglement_lib.utils.mi_estimators import estimate_entropies
 from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
 
 
-@gin.configurable("train", blacklist=[])
+@gin.configurable("train", denylist=[])
 class Train(pl.LightningModule):
     """Trains the estimator and exports the snapshot and the gin config.
 

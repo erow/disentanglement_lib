@@ -161,7 +161,7 @@ for path in [path_vae, path_custom_vae]:
 # evaluation protocol, while all other arguments have to be configured via gin.
 @gin.configurable(
     "custom_metric",
-    blacklist=["ground_truth_data", "representation_function", "random_state"])
+    denylist=["ground_truth_data", "representation_function", "random_state"])
 def compute_custom_metric(ground_truth_data,
                           representation_function,
                           random_state,

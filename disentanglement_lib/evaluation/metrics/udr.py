@@ -151,7 +151,7 @@ def _generate_representation_dataset(ground_truth_data,
 
 @gin.configurable(
     "udr_sklearn",
-    blacklist=["ground_truth_data", "representation_functions", "random_state"])
+    denylist=["ground_truth_data", "representation_functions", "random_state"])
 def compute_udr_sklearn(ground_truth_data,
                         representation_functions,
                         random_state,

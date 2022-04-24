@@ -43,7 +43,7 @@ import gin
 
 @gin.configurable(
     "unified_scores",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_unified_scores(ground_truth_data, representation_function,
                            random_state,
@@ -86,7 +86,7 @@ def compute_unified_scores(ground_truth_data, representation_function,
 
 @gin.configurable(
     "unified_score_validation",
-    blacklist=["observations", "labels", "representation_function"])
+    denylist=["observations", "labels", "representation_function"])
 def compute_unified_score_on_fixed_data(
         observations, labels, representation_function,
         train_percentage=gin.REQUIRED, matrix_fns=gin.REQUIRED, batch_size=100):
@@ -167,7 +167,7 @@ def pr_curves_values(matrix):
 
 @gin.configurable(
     "importance_gbt_matrix",
-    blacklist=["mus_train", "ys_train", "mus_test", "ys_test"])
+    denylist=["mus_train", "ys_train", "mus_test", "ys_test"])
 def importance_gbt_matrix(mus_train, ys_train, mus_test, ys_test):
     """Computes the importance matrix of the DCI Disentanglement score.
 
@@ -192,7 +192,7 @@ def importance_gbt_matrix(mus_train, ys_train, mus_test, ys_test):
 
 @gin.configurable(
     "mutual_information_matrix",
-    blacklist=["mus_train", "ys_train", "mus_test", "ys_test"])
+    denylist=["mus_train", "ys_train", "mus_test", "ys_test"])
 def mutual_information_matrix(mus_train, ys_train, mus_test, ys_test):
     """Computes the mutual information matrix between codes and factors.
 
@@ -217,7 +217,7 @@ def mutual_information_matrix(mus_train, ys_train, mus_test, ys_test):
 
 @gin.configurable(
     "accuracy_svm_matrix",
-    blacklist=["mus_train", "ys_train", "mus_test", "ys_test"])
+    denylist=["mus_train", "ys_train", "mus_test", "ys_test"])
 def accuracy_svm_matrix(mus_train, ys_train, mus_test, ys_test):
     """Prediction accuracy of a SVM predicting a factor from a single code.
 

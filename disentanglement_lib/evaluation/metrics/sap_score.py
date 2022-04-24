@@ -31,7 +31,7 @@ import gin
 
 @gin.configurable(
     "sap_score",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_sap(ground_truth_data,
                 representation_function,
@@ -85,7 +85,7 @@ def _compute_sap(mus, ys, mus_test, ys_test, continuous_factors):
 
 @gin.configurable(
     "sap_score_validation",
-    blacklist=["observations", "labels", "representation_function"])
+    denylist=["observations", "labels", "representation_function"])
 def compute_sap_on_fixed_data(observations, labels, representation_function,
                               train_percentage=gin.REQUIRED,
                               continuous_factors=gin.REQUIRED,

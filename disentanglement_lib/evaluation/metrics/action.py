@@ -57,7 +57,7 @@ class ActionSequence(keras.utils.Sequence):
 
 @gin.configurable(
     "action",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_action(ground_truth_data: GroundTruthData,
                    representation_function,

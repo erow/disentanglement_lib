@@ -30,7 +30,7 @@ import gin
 
 @gin.configurable(
     "beta_vae_sklearn",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_beta_vae_sklearn(ground_truth_data,
                              representation_function,

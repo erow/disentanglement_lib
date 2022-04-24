@@ -68,7 +68,7 @@ class DataModule(LightningDataModule):
 
         
 
-@gin.configurable("model", blacklist=[])
+@gin.configurable("model", denylist=[])
 class PLModel(pl.LightningModule):
     def __init__(self,
                  input_shape = [1, 64, 64],
