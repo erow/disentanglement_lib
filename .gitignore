@@ -4,6 +4,7 @@ exps
 wandb
 *logs
 pics
+notebooks
 gridsearch
 
 # Byte-compiled / optimized / DLL files

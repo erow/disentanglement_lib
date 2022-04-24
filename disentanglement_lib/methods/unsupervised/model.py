@@ -93,7 +93,7 @@ def make_metric_fn(*names):
 class BetaVAE(Regularizer):
     """BetaVAE model."""
 
-    def __init__(self, beta=gin.REQUIRED, **kwargs):
+    def __init__(self, beta=1, **kwargs):
         """Creates a beta-VAE model.
 
         Implementing Eq. 4 of "beta-VAE: Learning Basic Visual Concepts with a

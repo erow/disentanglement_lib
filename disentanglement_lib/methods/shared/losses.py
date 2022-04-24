@@ -21,7 +21,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import gin
-from pytorch_lightning.metrics.functional import ssim
 
 epsilon = 1e-3
 @gin.configurable("bernoulli_loss", allowlist=["subtract_true_image_entropy"])

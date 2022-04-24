@@ -115,11 +115,12 @@ class conv_encoder(nn.Module):
             nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
             nn.Flatten(),
             nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
-            nn.Linear(256, num_latent * 2)
         )
+        self.fc = nn.Linear(256, num_latent * 2)
 
     def forward(self, input_tensor):
         x = self.net(input_tensor)
+        x = self.fc(x)
         means, log_var = torch.split(x, [self.num_latent] * 2, 1)
         return means, log_var
 
@@ -175,16 +176,16 @@ class deconv_decoder(nn.Module):
         self.output_shape = output_shape
         self.net = nn.Sequential(
             nn.Linear(num_latent, 256), nn.ReLU(),
-            nn.BatchNorm1d(256),
+            # nn.BatchNorm1d(256),
             nn.Linear(256, 1024), nn.ReLU(),
-            nn.BatchNorm1d(1024),
+            # nn.BatchNorm1d(1024),
             View([-1, 64, 4, 4]),
             nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(),  # 8
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),  # 16
-            nn.BatchNorm2d(32),
+            # nn.BatchNorm2d(32),
             nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.ReLU(),  # 32
-            nn.BatchNorm2d(4),
+            # nn.BatchNorm2d(4),
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
 

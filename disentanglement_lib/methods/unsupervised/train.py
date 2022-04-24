@@ -85,9 +85,9 @@ class PLModel(pl.LightningModule):
         self.input_shape = input_shape
         self.summary = {}
         if isinstance(regularizers,list):
-            self.regularizers = nn.Sequential(*[i() for i in regularizers])
+            self.regularizers = nn.Sequential(*regularizers)
         else:
-            self.regularizers = nn.Sequential(regularizers())
+            self.regularizers = nn.Sequential(regularizers)
 
  
     def training_step(self, batch, batch_idx):
@@ -136,7 +136,7 @@ class PLModel(pl.LightningModule):
     def save_model(self, file, dir):
         file_path = os.path.join(dir, file)
         pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
-        torch.save(self.ae.state_dict(), file_path)
+        torch.save(self.state_dict(), file_path)
 
     def convert(self, device='cpu'):
         def _decoder(latent_vectors):
@@ -155,48 +155,22 @@ class PLModel(pl.LightningModule):
 
         return _encoder, _decoder
 
+from torch.utils.data import IterableDataset
+class Iterate(IterableDataset):
+    def __init__(self,source:GroundTruthData) -> None:
+        super(IterableDataset, self).__init__()
+        self.source = source
+        for k,v in source.__dict__.items():
+            self.__dict__[k] = v
+        for m in GroundTruthData.__dict__.keys():
+             if not m.startswith('__'):
+                self.__setattr__(m,getattr(source,m))
 
-# note: 未实现, trainer_args model_dir
-def train_with_gin(model_dir,
-                   overwrite=False,
-                   trainer_args = None,
-                   gin_config_files=None,
-                   gin_bindings=None):
-    """Trains a model based on the provided gin configuration.
 
-    This function will set the provided gin bindings, call the train() function
-    and clear the gin config. Please see train() for required gin bindings.
+    def __iter__(self):
+        return self
 
-    Args:
-      model_dir: String with path to directory where model output should be saved.
-      overwrite: Boolean indicating whether to overwrite output directory.
-      gin_config_files: List of gin config files to load.
-      gin_bindings: List of gin bindings to use.
-    """
-    if gin_config_files is None:
-        gin_config_files = []
-    if gin_bindings is None:
-        gin_bindings = []
-    
-    gin.clear_config()
-    gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
-    logging.info(gin.operative_config_str())
-    # model_path = pathlib.Path(model_dir)
-    # # Delete the output directory if it already exists.
-    # if model_path.exists():
-    #     if overwrite:
-    #         shutil.rmtree(model_path)
-    #     else:
-    #         raise FileExistsError("Directory already exists and overwrite is False.")
-    # model_path.mkdir(parents=True, exist_ok=True)
-
-    cli = MyLightningCLI(
-        override_args=trainer_args,
-        model_class=Train,
-        datamodule_class = DataModule,
-        save_config_callback=None,
-        env_parse=True,
-        parser_kwargs={
-            "default_config_files": ["cli_training.yaml", "/etc/cli_training.yaml"],
-            })
-    return cli.model
+    def __next__(self):
+        factors = self.source.sample_factors(1, np.random.RandomState())
+        observations = self.source.sample_observations_from_factors(factors,np.random.RandomState())
+        return observations.transpose((0, 3, 1, 2))[0].astype(np.float32), factors[0]

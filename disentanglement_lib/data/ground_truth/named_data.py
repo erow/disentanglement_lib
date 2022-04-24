@@ -47,6 +47,8 @@ def get_named_ground_truth_data(name="auto"):
         return dsprites.DSprites([2, 3, 4, 5])
     elif name == "dsprites_tiny":
         return dsprites.DSprites([2, 3, 4])
+    elif name == "dsprites_test":
+        return dsprites.DSprites([3, 4])
     elif name == "color_dsprites":
         return dsprites.ColorDSprites([1, 2, 3, 4, 5])
     elif name == "noisy_dsprites":
@@ -74,4 +76,4 @@ def get_named_ground_truth_data(name="auto"):
     elif name == 'correlation':
         return Correlation()
     else:
-        raise ValueError("Invalid data set name.")
+        raise ValueError("Invalid data set name. ---"+name)

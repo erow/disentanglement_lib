@@ -19,7 +19,6 @@ from __future__ import division
 from __future__ import print_function
 import numpy as np
 
-
 class GroundTruthData(object):
     """Abstract class for data sets that are two-step generative models."""
     tf_format = False
@@ -72,6 +71,7 @@ class GroundTruthData(object):
         factors = self.latent_factor(item)
         observations = self.sample_observations_from_factors(factors, np.random.RandomState())
         return observations.transpose((0, 3, 1, 2))[0].astype(np.float32), factors[0]
+
 
 def sample_factor(ds:GroundTruthData):
     factor = np.array([np.random.randint(i) for i in ds.factors_num_values])
