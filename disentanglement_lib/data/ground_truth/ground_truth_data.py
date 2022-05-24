@@ -49,7 +49,7 @@ class GroundTruthData(object):
         return factors, self.sample_observations_from_factors(factors, random_state)
 
     def sample_observations(self, num, random_state):
-        """Sample a batch of observations X."""
+        """Sample a batch of observations X. factors, obs"""
         return self.sample(num, random_state)[1]
 
     #  Compatible for torch DataSet
@@ -84,16 +84,8 @@ def action(ds:GroundTruthData,factor,dim):
     factors[:, dim] = np.arange(action_len)
     return ds.sample_observations_from_factors(factors, rand_seed)
 
+
 class RandomAction(object):
-
-    @property
-    def observation_shape(self):
-        return self.data.observation_shape
-
-    @property
-    def supervision(self):
-        return self.data.supervision
-
     def __init__(self, ground_truth_data: GroundTruthData,
                  factor_index,
                  factor_vec=None):
@@ -104,6 +96,19 @@ class RandomAction(object):
         else:
             self.factor = factor_vec
         self.action_index = factor_index
+
+        self.sample_factors=ground_truth_data.sample_factors
+        self.sample_observations_from_factors = ground_truth_data.sample_observations_from_factors
+        
+
+    @property
+    def observation_shape(self):
+        return self.data.observation_shape
+
+    @property
+    def supervision(self):
+        return self.data.supervision
+
 
     def __len__(self):
         return self.data.factors_num_values[self.action_index]

@@ -27,28 +27,6 @@ from torchvision.models.resnet import BasicBlock
 import gin
 
 
-@gin.configurable("discriminator", allowlist=["discriminator_fn"])
-def make_discriminator(num_latent,
-                       discriminator_fn=gin.REQUIRED):
-    """Gin wrapper to create and apply a discriminator configurable with gin.
-
-    This is a separate function so that several different models (such as
-    FactorVAE) can potentially call this function while the gin binding always
-    stays 'discriminator.(...)'. This makes it easier to configure models and
-    parse the results files.
-
-    Args:
-        num_latent: Number of the latent variables.
-      discriminator_fn: Function that that takes the arguments
-      (input_tensor, is_training) and returns tuple of (logits, clipped_probs).
-
-    Returns:
-      Tuple of (logits, clipped_probs) tensors.
-    """
-    # logits, probs = discriminator_fn(num_latent)
-    # clipped = torch.clamp(probs, 1e-6, 1 - 1e-6)
-    return discriminator_fn(num_latent)
-
 
 @gin.configurable("fc_encoder", allowlist=[])
 class fc_encoder(nn.Module):
@@ -74,6 +52,7 @@ class fc_encoder(nn.Module):
             nn.Linear(1200, 1200), nn.ReLU(),
             nn.Linear(1200, num_latent * 2)
         )
+        self.K = num_latent
         self.num_latent = num_latent
         self.input_shape = input_shape
 
@@ -115,13 +94,17 @@ class conv_encoder(nn.Module):
             nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
             nn.Flatten(),
             nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
+            nn.Linear(256, num_latent * 2)
         )
-        self.fc = nn.Linear(256, num_latent * 2)
+        self.K = num_latent
+        # self.W1 = nn.Parameter(torch.randn(num_latent,num_latent))                
+        # self.W2 = nn.Parameter(-2*torch.ones(1,num_latent))
 
     def forward(self, input_tensor):
         x = self.net(input_tensor)
-        x = self.fc(x)
         means, log_var = torch.split(x, [self.num_latent] * 2, 1)
+        # means = means@self.W1
+        # log_var = log_var - self.W2.exp()
         return means, log_var
 
 
@@ -175,16 +158,16 @@ class deconv_decoder(nn.Module):
         self.num_latent = num_latent
         self.output_shape = output_shape
         self.net = nn.Sequential(
-            nn.Linear(num_latent, 256), nn.ReLU(),
+            nn.Linear(num_latent, 256), nn.LeakyReLU(),
             # nn.BatchNorm1d(256),
-            nn.Linear(256, 1024), nn.ReLU(),
+            nn.Linear(256, 1024), nn.LeakyReLU(),
             # nn.BatchNorm1d(1024),
             View([-1, 64, 4, 4]),
-            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(),  # 8
+            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
             # nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(),  # 16
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
             # nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.ReLU(),  # 32
+            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
             # nn.BatchNorm2d(4),
             nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
         )
@@ -426,51 +409,84 @@ class Discriminator(nn.Module):
     def forward(self, img):
         img_flat = img.view(img.size(0), -1)
         validity = self.model(img_flat)
-
         return validity
-
+    
 @gin.configurable("frac_encoder", allowlist=[])
 class FracEncoder(nn.Module):
     def __init__(self,
                 input_shape,
-                num_latent,
-                gamma=0.1, G=5):
+                num_latent, G=5):
         super().__init__()
         self.G=G
         self.num_latent = num_latent
-        assert num_latent%G==0
+        assert num_latent % G==0
         self.K=num_latent//G
-        self.gamma = gamma
-        self.encoders = nn.Sequential(
+        self.sub_encoders = nn.Sequential(
             *[conv_encoder(input_shape, self.K,8) for _ in range(G)])
-        self.stage = 0
+        self.projs = nn.Sequential(
+            *[Projection(self.K) for _ in range(G)])
+        self.set_stage(0)
         
     def set_stage(self, i):
+        if i>= self.G:
+            i = self.G
         self.stage = i
-
-    def grad_recay(self, grad):
-        return grad * self.gamma
-
+        for i in range(min(self.stage, self.G)):
+            self.sub_encoders[i].requires_grad_(False)
+            
     def forward(self, x):
         mus, logvars = [], []
-
         for i in range(self.G):
-            f = self.encoders[i]
+            f = self.sub_encoders[i]
             if i<self.stage:
                 mu, logvar = f(x)
-                if mu.requires_grad:
-                    mu.register_hook(self.grad_recay)
-                    logvar.register_hook(self.grad_recay)
-                mus.append(mu)
-                logvars.append(logvar)
+                mu, logvar = self.projs[i](mu.data,logvar.data)
             elif i ==self.stage:
                 mu, logvar = f(x)
-                mus.append(mu)
-                logvars.append(logvar)
             else:
-                mus.append(torch.zeros_like(mu))
-                logvars.append(torch.zeros_like(mu))
+                mu = torch.zeros_like(mu)
+                logvar = torch.zeros_like(mu)
+            mus.append(mu)
+            logvars.append(logvar)
         
         mu = torch.cat(mus,1)
         logvar = torch.cat(logvars,1)
         return mu, logvar
+
+@gin.configurable("discriminator", allowlist=["discriminator_fn"])
+def make_discriminator(num_latent,
+                       discriminator_fn=fc_discriminator):
+    """Gin wrapper to create and apply a discriminator configurable with gin.
+
+    This is a separate function so that several different models (such as
+    FactorVAE) can potentially call this function while the gin binding always
+    stays 'discriminator.(...)'. This makes it easier to configure models and
+    parse the results files.
+
+    Args:
+        num_latent: Number of the latent variables.
+      discriminator_fn: Function that that takes the arguments
+      (input_tensor, is_training) and returns tuple of (logits, clipped_probs).
+
+    Returns:
+      Tuple of (logits, clipped_probs) tensors.
+    """
+    # logits, probs = discriminator_fn(num_latent)
+    # clipped = torch.clamp(probs, 1e-6, 1 - 1e-6)
+    return discriminator_fn(num_latent)
+
+class Projection(nn.Module):
+    def __init__(self,num_latent) -> None:
+        super().__init__()
+        self.num_latent = num_latent  
+        self.W1 = nn.Parameter(torch.zeros(1,num_latent))             
+        self.W2 = nn.Parameter(torch.zeros(1,num_latent))
+
+    def forward(self, mu, logvar):
+        z_mean1 = mu*self.W1.exp()
+        z_logvar1 = logvar + self.W2
+        return z_mean1, z_logvar1
+    
+    def extra_repr(self):
+        return "W1: " + str((self.W1.exp()).data.cpu().numpy().round(2))+",\n"+\
+        "W2: " + str(self.W2.data.cpu().numpy().round(2))

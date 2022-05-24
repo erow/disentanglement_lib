@@ -28,6 +28,7 @@ from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
 from disentanglement_lib.methods.shared import architectures, losses
 from disentanglement_lib.methods.unsupervised import model 
+from torch.utils.data import IterableDataset
 
 import numpy as np
 import logging
@@ -76,8 +77,10 @@ class PLModel(pl.LightningModule):
                  encoder_fn=architectures.conv_encoder,
                  decoder_fn=architectures.deconv_decoder,
                  regularizers=[],
+                 seed = 99,
                  **kwargs):
         super().__init__(**kwargs)
+        pl.seed_everything(seed)
         self.save_hyperparameters(config_dict())
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
         self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
@@ -155,22 +158,26 @@ class PLModel(pl.LightningModule):
 
         return _encoder, _decoder
 
-from torch.utils.data import IterableDataset
+
 class Iterate(IterableDataset):
     def __init__(self,source:GroundTruthData) -> None:
         super(IterableDataset, self).__init__()
         self.source = source
         for k,v in source.__dict__.items():
             self.__dict__[k] = v
-        for m in GroundTruthData.__dict__.keys():
+        for m in source.__dict__.keys():
              if not m.startswith('__'):
                 self.__setattr__(m,getattr(source,m))
+        self.length = len(self.source)
+        self.index = 0
+        self.sample = source.sample
+        self.rs = np.random.RandomState(0)
 
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        factors = self.source.sample_factors(1, np.random.RandomState())
-        observations = self.source.sample_observations_from_factors(factors,np.random.RandomState())
-        return observations.transpose((0, 3, 1, 2))[0].astype(np.float32), factors[0]
+        # return self.source[np.random.randint(self.length)]
+        factors, obs = self.source.sample(1,self.rs)
+        return obs[0].transpose(2,0,1), factors[0]

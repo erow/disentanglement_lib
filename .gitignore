@@ -3,6 +3,8 @@
 exps
 wandb
 *logs
+*.pt
+*.ckpt
 pics
 notebooks
 gridsearch

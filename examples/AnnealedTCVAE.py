@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import math
 import os
 from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.evaluation.metrics import utils
@@ -17,7 +18,6 @@ import gin
 import numpy as np
 
 from disentanglement_lib.visualize.visualize_model import visualize
-from examples.TC import *
 import wandb
 
 beta = None

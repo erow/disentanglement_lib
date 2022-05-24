@@ -1,3 +1,4 @@
+import os
 import gin
 import numpy as np
 import torch
@@ -8,21 +9,25 @@ from disentanglement_lib.methods.shared import losses
 from pytorch_lightning.callbacks import Callback
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from disentanglement_lib.data.ground_truth import named_data
-from disentanglement_lib.evaluation.metrics import mig
 from disentanglement_lib.methods.unsupervised.model import gaussian_log_density, sample_from_latent_distribution
 
 from disentanglement_lib.utils.mi_estimators import estimate_entropies
 import torch.nn.functional as F
 from torch.utils.data import IterableDataset
 
+class EarlyStop(Callback):
+    def on_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if pl_module.summary['reconstruction_loss']<1:
+            trainer.should_stop=True
+        return super().on_batch_end(trainer, pl_module)
+        
 class Evaluation(Callback):
     def __init__(self, every_n_step):
         self.every_n_step = every_n_step
         self.log={}
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if (trainer.global_step+1) % self.every_n_step == 0:
+        if trainer.global_rank == 0 and (trainer.global_step+1) % self.every_n_step == 0:
             log = self.compute(pl_module, trainer.train_dataloader)
             self.log=log
             wandb.log(log, step=trainer.global_step)
@@ -113,9 +118,10 @@ class Decomposition(Evaluation):
 
 
 class ComputeMetric(Evaluation):
-    def __init__(self, every_n_step, metric_fn):
+    def __init__(self, every_n_step, metric_fn, dataset=None):
         self.every_n_step = every_n_step
         self.metric_fn = metric_fn
+        self.dataset = dataset
 
     @torch.no_grad()
     def compute(self, model, train_dl) -> dict:
@@ -123,13 +129,56 @@ class ComputeMetric(Evaluation):
         model.eval()
         model.cpu()
         _encoder, _decoder = model.convert()
-        
-        dataset = train_dl.dataset.datasets
-        result = self.metric_fn(dataset, lambda x: _encoder(x)[
-                                 0], np.random.RandomState(), )
+        def sample_latent(x):
+            mu, logvar = _encoder(x)
+            e = np.random.randn(*mu.shape)
+            return mu + np.exp(logvar/2) *e
+        if self.dataset is None:
+            dataset = train_dl.dataset.datasets
+        else:
+            dataset = self.dataset
+        result = self.metric_fn(dataset, 
+                                sample_latent,
+                                np.random.RandomState(),)
         model.to(device)
         model.train()
         return result
+
+class CheckpointEveryNSteps(pl.Callback):
+    """
+    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
+    based on validation loss.
+    """
+
+    def __init__(
+        self,
+        save_step_frequency,
+        prefix="N-Step-Checkpoint",
+        use_modelcheckpoint_filename=False,
+    ):
+        """
+        Args:
+            save_step_frequency: how often to save in steps
+            prefix: add a prefix to the name, only used if
+                use_modelcheckpoint_filename=False
+            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
+                default filename, don't use ours.
+        """
+        self.save_step_frequency = save_step_frequency
+        self.prefix = prefix
+        self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
+
+    def on_batch_end(self, trainer: pl.Trainer, _):
+        """ Check if we should save a checkpoint after every train batch """
+        epoch = trainer.current_epoch
+        global_step = trainer.global_step
+        if global_step % self.save_step_frequency == 0:
+            if self.use_modelcheckpoint_filename:
+                filename = trainer.checkpoint_callback.filename
+            else:
+                filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
+            ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
+            trainer.save_checkpoint(ckpt_path)
 
 
 class Visualization(Evaluation):
@@ -137,9 +186,7 @@ class Visualization(Evaluation):
         self.every_n_step = every_n_step
 
     @torch.no_grad()
-    def compute(self, model, train_dl) -> dict:
-        if wandb.run is None: return {}
-        
+    def compute(self, model, train_dl) -> dict:                
         from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
         device = model.device
         model.eval()
@@ -150,14 +197,15 @@ class Visualization(Evaluation):
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
         model.to(device)
         model.train()
-        return {'traversal': wandb.Image(fig)}
+        return {'viz/traversal': wandb.Image(fig)}
 
 class Projection(Evaluation):
     def __init__(self, every_n_step,dataset, factor_list,latent_list,
-        title=""):
+        title="",key="viz/projection"):
         self.every_n_step = every_n_step
         self.latent_list = latent_list
         self.factor_list = factor_list
+        self.key = key
         self.title = title
         assert len(factor_list)==2 and len(latent_list) ==2
 
@@ -200,12 +248,12 @@ class Projection(Evaluation):
         for i in range(z.shape[0]):
             plt.plot(*z[i].T)
         plt.grid()
-        plt.title('title')
+        plt.title(self.title)
         
         plt.xlabel("z="+str(self.latent_list[0]))
         plt.ylabel("z="+str(self.latent_list[1]))
 
-        log = {'projection':wandb.Image(fig)}
+        log = {self.key:wandb.Image(fig)}
         # plt.close(fig)
         return log
 # note: not finished

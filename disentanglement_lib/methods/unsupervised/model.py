@@ -165,7 +165,7 @@ class AnnealedVAE(Regularizer):
 class FactorVAE(Regularizer):
     """FactorVAE model."""
 
-    def __init__(self, input_shape, gamma=gin.REQUIRED, **kwargs):
+    def __init__(self, num_latent=gin.REQUIRED,gamma=gin.REQUIRED):
         """Creates a FactorVAE model.
 
         Implementing Eq. 2 of "Disentangling by Factorizing"
@@ -176,7 +176,7 @@ class FactorVAE(Regularizer):
         """
         super().__init__()
         self.gamma = gamma
-        self.discriminator = architectures.make_discriminator(self.num_latent)
+        self.discriminator = architectures.make_discriminator(num_latent)
         self.opt = torch.optim.Adam(self.discriminator.parameters())
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
