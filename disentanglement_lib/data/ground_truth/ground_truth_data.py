@@ -23,6 +23,7 @@ class GroundTruthData(object):
     """Abstract class for data sets that are two-step generative models."""
     tf_format = False
     supervision = True
+    rs = np.random.RandomState(99)
     @property
     def num_factors(self):
         raise NotImplementedError()
@@ -69,7 +70,7 @@ class GroundTruthData(object):
 
     def __getitem__(self, item):
         factors = self.latent_factor(item)
-        observations = self.sample_observations_from_factors(factors, np.random.RandomState())
+        observations = self.sample_observations_from_factors(factors, self.rs)
         return observations.transpose((0, 3, 1, 2))[0].astype(np.float32), factors[0]
 
 
