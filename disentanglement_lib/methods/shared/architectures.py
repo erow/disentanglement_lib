@@ -88,23 +88,20 @@ class conv_encoder(nn.Module):
         self.num_latent = num_latent
         self.input_shape = input_shape
         self.net = nn.Sequential(
-            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 32x32
-            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(),  # 16
-            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 8
-            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(),  # 4
+            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), nn.ReLU(True),  # 32x32
+            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), nn.ReLU(True),    # 16
+            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(True),# 8
+            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(True),  # 4
+            nn.Conv2d(base_channel * 2, base_channel * 8, (4, 4)), nn.ReLU(True),           # 1x1
             nn.Flatten(),
-            nn.Linear(4 * 4 * base_channel * 2, 256), nn.ReLU(),
-            nn.Linear(256, num_latent * 2)
+            nn.Linear(1 * 1 * base_channel * 8, 128), nn.ReLU(),
+            nn.Linear(128, num_latent * 2)
         )
         self.K = num_latent
-        # self.W1 = nn.Parameter(torch.randn(num_latent,num_latent))                
-        # self.W2 = nn.Parameter(-2*torch.ones(1,num_latent))
 
     def forward(self, input_tensor):
         x = self.net(input_tensor)
         means, log_var = torch.split(x, [self.num_latent] * 2, 1)
-        # means = means@self.W1
-        # log_var = log_var - self.W2.exp()
         return means, log_var
 
 
@@ -158,18 +155,13 @@ class deconv_decoder(nn.Module):
         self.num_latent = num_latent
         self.output_shape = output_shape
         self.net = nn.Sequential(
-            nn.Linear(num_latent, 256), nn.LeakyReLU(),
-            # nn.BatchNorm1d(256),
-            nn.Linear(256, 1024), nn.LeakyReLU(),
-            # nn.BatchNorm1d(1024),
+            nn.Linear(num_latent, 256), nn.ReLU(True),
+            nn.Linear(256, 1024), nn.ReLU(True),
             View([-1, 64, 4, 4]),
-            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.LeakyReLU(),  # 8
-            # nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.LeakyReLU(),  # 16
-            # nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 4, 4, stride=2, padding=1), nn.LeakyReLU(),  # 32
-            # nn.BatchNorm2d(4),
-            nn.ConvTranspose2d(4, output_shape[0], 4, stride=2, padding=1)  # 64
+            nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(True),  # 8
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(True),  # 16
+            nn.ConvTranspose2d(32, 32, 4, stride=2, padding=1), nn.ReLU(True),  # 32
+            nn.ConvTranspose2d(32, output_shape[0], 4, stride=2, padding=1)  # 64
         )
 
     def forward(self, latent_tensor):

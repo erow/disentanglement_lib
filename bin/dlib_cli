@@ -6,7 +6,7 @@ from __future__ import division
 from __future__ import print_function
 
 from pytorch_lightning.core.datamodule import LightningDataModule
-from disentanglement_lib.methods.unsupervised.train import DataModule , Train
+from disentanglement_lib.methods.unsupervised.train import DataModule , PLModel
 from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
 
 import os
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         gin.parse_config_file(gin_file, True)
 
     cli = MyLightningCLI(
-        model_class=Train,
+        model_class=PLModel,
         datamodule_class = DataModule,
         env_parse=True,
         save_config_callback=None,

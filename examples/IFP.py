@@ -78,7 +78,7 @@ if __name__ == "__main__":
         checkpoint_callback=False,
         callbacks=[
             callbacks.EarlyStop(),
-            callbacks.Visualization(2000),
+            callbacks.Traversal(2000),
         ],
         gpus=1,)
     trainer.fit(pl_model, dl)

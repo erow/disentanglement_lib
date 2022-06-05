@@ -72,7 +72,7 @@ if __name__ == "__main__":
         callbacks=[
             callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig),
             callbacks.Decomposition(CALLBACK_STEPS,dataset),
-            callbacks.Visualization(CALLBACK_STEPS),
+            callbacks.Traversal(CALLBACK_STEPS),
             callbacks.Projection(CALLBACK_STEPS,dataset, [2,3],[0,1],"posX, posY",key="viz/XY"),
             callbacks.Projection(CALLBACK_STEPS,dataset, [0,0],[2,3],"scale, scale",key='viz/S'),
             callbacks.Projection(CALLBACK_STEPS,dataset, [1,1],[4,5],"rotation, rotation",key='viz/R')

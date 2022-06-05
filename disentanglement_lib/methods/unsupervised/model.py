@@ -113,6 +113,9 @@ class BetaVAE(Regularizer):
         del z_mean, z_logvar, z_sampled
         kl_loss = kl.sum()
         return self.beta * kl_loss
+    
+    def extra_repr(self) -> str:
+        return f"beta={self.beta}"
 
 
 def anneal(c_max, step, iteration_threshold):

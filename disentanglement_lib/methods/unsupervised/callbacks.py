@@ -14,6 +14,8 @@ from disentanglement_lib.methods.unsupervised.model import gaussian_log_density,
 from disentanglement_lib.utils.mi_estimators import estimate_entropies
 import torch.nn.functional as F
 from torch.utils.data import IterableDataset
+from torchvision.transforms.functional import to_pil_image
+from torchvision.utils import make_grid
 
 class EarlyStop(Callback):
     def on_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -22,14 +24,15 @@ class EarlyStop(Callback):
         return super().on_batch_end(trainer, pl_module)
         
 class Evaluation(Callback):
-    def __init__(self, every_n_step):
+    def __init__(self, every_n_step, prefix=""):
         self.every_n_step = every_n_step
         self.log={}
+        self.prefix = prefix
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_rank == 0 and (trainer.global_step+1) % self.every_n_step == 0:
             log = self.compute(pl_module, trainer.train_dataloader)
-            self.log=log
+            self.log={ self.prefix+k:v for k,v in log.items()}
             wandb.log(log, step=trainer.global_step)
 
     @torch.no_grad()
@@ -37,8 +40,8 @@ class Evaluation(Callback):
         raise NotImplementedError()
 
 class Decomposition(Evaluation):
-    def __init__(self, every_n_step,ds):
-        super().__init__(every_n_step)
+    def __init__(self, every_n_step,ds,prefix=""):
+        super().__init__(every_n_step,prefix)
         self.ds = ds
     @torch.no_grad()
     def compute(self, model, train_dl=None):
@@ -116,10 +119,34 @@ class Decomposition(Evaluation):
         model.train()
         return log
 
+class ShowSamples(Evaluation):
+    def __init__(self, every_n_step,ds,number=16,prefix="viz"):
+        super().__init__(every_n_step,prefix)
+        self.ds = ds
+        self.number = number
 
+    @torch.no_grad()
+    def compute(self, model, train_dl=None):
+        device = model.device
+        model.eval()
+        for samples in DataLoader(self.ds,self.number,num_workers=4,shuffle=True):
+            xs, _ = samples
+            batch_size = xs.size(0)
+            xs = xs.view(batch_size, -1, 64, 64).to(device)
+            mu, logvar = model.encode(xs)
+            z =sample_from_latent_distribution(mu, logvar)
+            recons = model.decode(z[:self.number]).data.sigmoid()
+            break
+
+        pic = make_grid(torch.cat([recons,xs]).cpu(), int(np.sqrt(self.number)),pad_value=1)
+        fig = to_pil_image(pic)
+
+        model.train()
+        log = {'samples':wandb.Image(fig)}
+        return log
 class ComputeMetric(Evaluation):
-    def __init__(self, every_n_step, metric_fn, dataset=None):
-        self.every_n_step = every_n_step
+    def __init__(self, every_n_step, metric_fn, dataset=None,prefix=""):
+        super().__init__(every_n_step,prefix)
         self.metric_fn = metric_fn
         self.dataset = dataset
 
@@ -176,14 +203,14 @@ class CheckpointEveryNSteps(pl.Callback):
             if self.use_modelcheckpoint_filename:
                 filename = trainer.checkpoint_callback.filename
             else:
-                filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
+                filename = f"{self.prefix}_{epoch}_{global_step}.ckpt"
             ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
             trainer.save_checkpoint(ckpt_path)
 
 
-class Visualization(Evaluation):
-    def __init__(self, every_n_step):
-        self.every_n_step = every_n_step
+class Traversal(Evaluation):
+    def __init__(self, every_n_step,prefix="viz"):
+        super().__init__(every_n_step,prefix)
 
     @torch.no_grad()
     def compute(self, model, train_dl) -> dict:                
@@ -197,12 +224,12 @@ class Visualization(Evaluation):
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
         model.to(device)
         model.train()
-        return {'viz/traversal': wandb.Image(fig)}
+        return {'traversal': wandb.Image(fig)}
 
 class Projection(Evaluation):
     def __init__(self, every_n_step,dataset, factor_list,latent_list,
-        title="",key="viz/projection"):
-        self.every_n_step = every_n_step
+        title="", key="projection",prefix="viz"):
+        super().__init__(every_n_step,prefix)
         self.latent_list = latent_list
         self.factor_list = factor_list
         self.key = key
