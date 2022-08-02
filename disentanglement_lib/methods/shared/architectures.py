@@ -475,10 +475,10 @@ class Projection(nn.Module):
         self.W2 = nn.Parameter(torch.zeros(1,num_latent))
 
     def forward(self, mu, logvar):
-        z_mean1 = mu*self.W1.exp()
-        z_logvar1 = logvar + self.W2
+        z_mean1 = mu * self.W1.exp()
+        z_logvar1 = logvar * self.W2.exp()
         return z_mean1, z_logvar1
     
     def extra_repr(self):
         return "W1: " + str((self.W1.exp()).data.cpu().numpy().round(2))+",\n"+\
-        "W2: " + str(self.W2.data.cpu().numpy().round(2))
+        "W2: " + str(self.W2.exp().data.cpu().numpy().round(2))

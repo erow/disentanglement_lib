@@ -423,10 +423,10 @@ class CascadeVAEC(Regularizer):
 
 @gin.configurable("annealing")
 class Annealing(Regularizer):
-    def __init__(self, beta_h=80):
+    def __init__(self, training_steps=gin.REQUIRED,beta_h=80):
         super().__init__()
         self.beta = beta_h
-        self.total_steps = gin.query_parameter('train.training_steps')
+        self.total_steps = training_steps
         self.delta = beta_h / self.total_steps
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
@@ -456,68 +456,7 @@ class DEFT(Regularizer):
         beta = self.betas[self.stage]
         model.summary['beta'] = beta
         return beta * (kl.sum())
+    
+    def extra_repr(self) -> str:
+        return f"betas={self.betas}, stage_steps=self.stage_steps"
 
-
-class DecoderReg(Regularizer):
-    def __init__(self, input_shape, shared=True, alpha=0, lam=0, ):
-        super().__init__()
-        self.alpha = alpha
-        self.lam = lam
-        self.shared = shared
-
-        if not shared:
-            self.decodes = \
-                torch.nn.Sequential(*[architectures.lite_decoder(self.num_latent, input_shape)
-                                      for _ in range(self.num_latent - 1)])
-
-    def get_decoder(self, i):
-        if self.shared:
-            return self.decode
-
-        if i == self.num_latent - 1:
-            return self.decode
-        return self.decodes[i]
-
-    def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        features, _ = data_batch
-        reg_loss = torch.tensor(0)
-
-        num_samples = 100
-        device = z_sampled.device
-
-        H_xCz = []
-        z1 = torch.randn(num_samples, self.num_latent, device=device)
-        for i in range(self.num_latent + 1):
-            r = torch.randn_like(z_sampled)
-            r[:, :i] = z_sampled[:, :i]
-
-            reconstructions = self.get_decoder(i)(r).detach()
-            per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
-            reg_recon = torch.mean(per_sample_loss)
-            model.summary[f'reg_recon/{i}'] = reg_recon
-            # reg_loss1 = reg_recon + kl[:i + 1].sum()
-            # print(loss,reg_loss,self.alpha)
-            # reg_loss = reg_loss + reg_loss1 * pow(self.alpha, i)
-
-            # decoder reg
-            z2 = torch.randn(num_samples, self.num_latent - i, device=device)
-            z = torch.cat([z1[:, :i], z2], 1)
-            recons = torch.sigmoid(self.decode(z))
-            H_xCz.append(BernoulliH(recons.mean(0)).flatten())
-
-        H_xCz = torch.stack(H_xCz)
-        H_gap = H_xCz[1:] - H_xCz[:-1]
-        gap_indices = torch.argmax(H_gap, 0)
-
-        for i in range(1, H_xCz.size(0)):
-            reg_loss = reg_loss + H_xCz[i, i > gap_indices].sum()
-
-        model.summary["reg_loss"] = reg_loss
-
-        for i, max_gap in enumerate(H_gap.max(1)[1]):
-            model.summary[f"H_gap/{i}"] = max_gap.item()
-        if self.alpha == 1:
-            s = self.num_latent
-        else:
-            s = (1 - pow(self.alpha, self.num_latent)) / (1 - self.alpha)
-        return reg_loss / s
