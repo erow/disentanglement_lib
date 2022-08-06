@@ -29,6 +29,7 @@ import gin
 from disentanglement_lib.data.ground_truth.correlation import Correlation
 from disentanglement_lib.data.unsupervised.chairs import Chairs
 
+from disentanglement_lib.data.unsupervised.image_folder import ImageFolder
 
 @gin.configurable("dataset")
 def get_named_ground_truth_data(name="auto"):
@@ -76,4 +77,8 @@ def get_named_ground_truth_data(name="auto"):
     elif name == 'correlation':
         return Correlation()
     else:
-        raise ValueError("Invalid data set name. ---"+name)
+        if "image_folder" in name:
+            path = name.split(':')[1]
+            return ImageFolder(path)
+    
+    raise ValueError("Invalid data set name. ---"+name)

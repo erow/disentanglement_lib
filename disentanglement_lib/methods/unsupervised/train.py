@@ -23,7 +23,7 @@ import time
 from pytorch_lightning.core.datamodule import LightningDataModule
 from pytorch_lightning.utilities.cli import LightningCLI
 
-from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.data import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
 from disentanglement_lib.methods.shared import architectures, losses
@@ -52,9 +52,9 @@ def config_dict():
     return macros
 
 class DataModule(LightningDataModule):
-    def __init__(self, dataset="dsprites_tiny", batch_size=256):
+    def __init__(self, batch_size=256):
         super().__init__()
-        self.dataset = named_data.get_named_ground_truth_data(dataset)
+        self.dataset = named_data.get_named_ground_truth_data()
         obs_np = self.dataset.observation_shape
         self._dims = obs_np[2], obs_np[0], obs_np[1]
         self.batch_size = batch_size
@@ -127,13 +127,13 @@ class PLModel(pl.LightningModule):
         self.summary['elbo'] = -elbo
         self.summary['loss'] = loss
 
-        for i in range(kl.shape[0]):
-            self.summary[f"kl/{i}"] = kl[i]
+        # for i in range(kl.shape[0]):
+        #     self.summary[f"kl/{i}"] = kl[i]
 
         return loss, self.summary
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(),5e-4)
+        return torch.optim.Adam(self.parameters(),1e-4,betas=[0.9,0.999])
  
 
     def save_model(self, file, dir):
@@ -142,23 +142,28 @@ class PLModel(pl.LightningModule):
         torch.save(self.state_dict(), file_path)
 
     def convert(self, device='cpu'):
-        def _decoder(latent_vectors):
+        def _decoder(latent_vectors,*args):
             with torch.no_grad():
                 z = torch.FloatTensor(latent_vectors).to(device)
-                imgs = self.decode(z).cpu().sigmoid().numpy()
+                imgs = self.decode(z,*args).cpu().sigmoid().numpy()
                 return imgs.transpose((0, 2, 3, 1))
 
-        def _encoder(obs):
+        def _encoder(obs,*args):
             with torch.no_grad():
                 # if isinstance(obs,torch.Tensor):
                 obs = torch.FloatTensor(obs.transpose((0, 3, 1, 2))).to(device)  # convert tf format to torch's
-                mu, logvar = self.encode(obs)
+                mu, logvar = self.encode(obs,*args)
                 mu, logvar = mu.cpu().numpy(), logvar.cpu().numpy()
                 return mu, logvar
 
         return _encoder, _decoder
 
-
+    def train_dataloader(self):
+        dataset = named_data.get_named_ground_truth_data()
+        return torch.utils.data.DataLoader(
+            dataset, num_workers=4,
+            shuffle=True, batch_size=128, pin_memory=True)
+        
 class Iterate(IterableDataset):
     def __init__(self,source:GroundTruthData) -> None:
         super(IterableDataset, self).__init__()

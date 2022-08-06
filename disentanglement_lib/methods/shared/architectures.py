@@ -94,8 +94,7 @@ class conv_encoder(nn.Module):
             nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), nn.ReLU(True),  # 4
             nn.Conv2d(base_channel * 2, base_channel * 8, (4, 4)), nn.ReLU(True),           # 1x1
             nn.Flatten(),
-            nn.Linear(1 * 1 * base_channel * 8, 128), nn.ReLU(),
-            nn.Linear(128, num_latent * 2)
+            nn.Linear(1 * 1 * base_channel * 8, num_latent * 2)
         )
         self.K = num_latent
 
@@ -156,8 +155,8 @@ class deconv_decoder(nn.Module):
         self.output_shape = output_shape
         self.net = nn.Sequential(
             nn.Linear(num_latent, 256), nn.ReLU(True),
-            nn.Linear(256, 1024), nn.ReLU(True),
-            View([-1, 64, 4, 4]),
+            View([-1, 256, 1, 1]),
+            nn.ConvTranspose2d(256, 64, 4), nn.ReLU(True),  # 4
             nn.ConvTranspose2d(64, 64, 4, stride=2, padding=1), nn.ReLU(True),  # 8
             nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1), nn.ReLU(True),  # 16
             nn.ConvTranspose2d(32, 32, 4, stride=2, padding=1), nn.ReLU(True),  # 32
@@ -290,6 +289,7 @@ class lite_decoder(nn.Module):
     def forward(self, latent_tensor):
         x = self.net(latent_tensor)
         return torch.reshape(x, shape=[-1] + self.output_shape)
+
 @gin.configurable("deep_decoder", allowlist=[])
 class DeepConvDecoder(nn.Module):
     def __init__(self, num_latent, output_shape, width=256):
@@ -408,6 +408,13 @@ class FracEncoder(nn.Module):
     def __init__(self,
                 input_shape,
                 num_latent, G=5):
+        """Fractional encoder with multi sub-encoders. https://link.springer.com/article/10.1007/s10994-022-06134-7
+
+        Args:
+            input_shape (list): The shape of inputs.
+            num_latent (int): The number of latent variables.
+            G (int, optional): The number of sub-encoders. Defaults to 5.
+        """
         super().__init__()
         self.G=G
         self.num_latent = num_latent
@@ -420,6 +427,11 @@ class FracEncoder(nn.Module):
         self.set_stage(0)
         
     def set_stage(self, i):
+        """Stop gradients for [0,i) sub-encoders.
+
+        Args:
+            i (int): current stage.
+        """
         if i>= self.G:
             i = self.G
         self.stage = i

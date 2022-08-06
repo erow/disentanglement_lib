@@ -16,7 +16,7 @@ import pytorch_lightning as pl
 from disentanglement_lib.config.unsupervised_study_v1.sweep import UnsupervisedStudyV1
 from disentanglement_lib.methods.unsupervised import train
 from disentanglement_lib.data.ground_truth.ground_truth_data import RandomAction
-from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
+from disentanglement_lib.data.ground_truth import get_named_ground_truth_data
 import gin
 
 if __name__ == '__main__':

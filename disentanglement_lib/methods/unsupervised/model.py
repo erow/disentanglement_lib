@@ -421,18 +421,19 @@ class CascadeVAEC(Regularizer):
         return kl_loss
 
 
-@gin.configurable("annealing")
+@gin.configurable("exp_annealing")
 class Annealing(Regularizer):
-    def __init__(self, training_steps=gin.REQUIRED,beta_h=80):
+    def __init__(self, training_steps=gin.REQUIRED,beta_h=150,temp=6):
         super().__init__()
-        self.beta = beta_h
+        self.beta_h = beta_h
         self.total_steps = training_steps
-        self.delta = beta_h / self.total_steps
+        self.temp = temp
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        beta = max(self.beta - self.delta, 1)
+        global_step = model.global_step
+        t=max(0.0,1 - float(global_step)/self.total_steps)
+        beta = self.beta_h*np.exp(-t*self.temp)
         model.summary['beta'] = beta
-        self.beta = beta
         return beta * (kl.sum())
 
 
@@ -460,3 +461,103 @@ class DEFT(Regularizer):
     def extra_repr(self) -> str:
         return f"betas={self.betas}, stage_steps=self.stage_steps"
 
+
+from math import exp
+
+@gin.configurable('control')
+class PIDControl(Regularizer):
+    """docstring for ClassName"""
+    def __init__(self,C=gin.REQUIRED,
+                 training_steps=gin.REQUIRED,
+                 init_C=0.5,
+                 step_value=0.15,
+                 step_iteration=5000,
+                 Kp=0.01,
+                 Ki= -0.001):
+        """define them out of loop"""
+        # self.exp_KL = exp_KL
+        super().__init__()
+        self.C = C
+        self.training_steps=training_steps
+        self.current_C=init_C-step_value
+        self.step_value=step_value
+        self.step_iteration = step_iteration
+        self.Kp=Kp
+        self.Ki=Ki
+        
+        # init values
+        self.I_k1 = 0.0
+        self.W_k1 = 1.0
+        self.e_k1 = 0.0
+        
+    def _Kp_fun(self, Err, scale=1):
+        return 1.0/(1.0 + float(scale)*exp(Err))
+        
+    def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
+        kl_loss = kl.sum()
+        if model.global_step%self.step_iteration==0:
+            self.current_C += self.step_value
+        exp_KL = min(self.C, self.current_C)
+        Kp=self.Kp
+        Ki=self.Ki
+        
+        error_k = exp_KL - kl_loss.item()
+        ## comput U as the control factor
+        Pk = Kp * self._Kp_fun(error_k)+1
+        Ik = self.I_k1 + Ki * error_k
+        
+        ## window up for integrator
+        if self.W_k1 < 1:
+            Ik = self.I_k1
+            
+        Wk = Pk + Ik
+        self.W_k1 = Wk
+        self.I_k1 = Ik
+        
+        ## min and max value
+        if Wk < 1:
+            Wk = 1
+        
+        model.summary['beta'] = Wk
+        model.summary['exp_KL'] = exp_KL
+        model.summary['e_t'] = error_k
+        return kl_loss * Wk
+    
+@gin.configurable('dynamic')
+class DynamicVAE(Regularizer):
+    def __init__(self,training_steps=gin.REQUIRED,C=gin.REQUIRED,K_p=-0.01,K_i= -0.005,beta_min=1.,beta_init=150.) -> None:
+        super().__init__()
+        self.training_steps=training_steps
+        self.C = C
+        
+        self.alpha=0.95
+        self.K_p = K_p
+        self.K_i = K_i
+        self.beta_min = beta_min
+        self.step_fn = lambda x: x if x<0 else 0
+        
+        self.y_t1 = 0.
+        self.e_t1 = 0.
+        self.beta1=beta_init
+        
+    
+    def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
+        t = min(1,model.global_step/self.training_steps)
+        kl_loss = kl.sum()
+        y_t = self.alpha*kl_loss.item()+(1-self.alpha)*self.y_t1
+        target = self.C*t
+        e_t = target - y_t
+        dP_t = self.K_p*(self.step_fn(e_t)-self.step_fn(self.e_t1))
+        if self.beta1 < self.beta_min:
+            dI_t=0
+        else:
+            dI_t = self.K_i*e_t 
+        dBeta = dP_t + dI_t
+        beta = max(dBeta + self.beta1, self.beta_min)
+        
+        self.beta1 = beta # beta(t-1)
+        self.e_t1 = e_t # e(t-1)
+        self.y_t1 = y_t
+        model.summary['beta'] = beta
+        model.summary['e_t'] = e_t
+        return kl_loss * beta
