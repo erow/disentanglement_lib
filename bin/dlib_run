@@ -43,7 +43,7 @@ if __name__ == '__main__':
     
     callbacks_fn = [
         callbacks.Traversal(CALLBACK_STEPS),
-        callbacks.ShowSamples(CALLBACK_STEPS//10,dataset),
+        callbacks.ShowSamples(CALLBACK_STEPS//4,dataset),
     ]
     if dataset.supervision: 
         callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))

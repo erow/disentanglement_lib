@@ -6,7 +6,7 @@ program = "dlib_run"
 
 seeds = h.sweep("model.seed",h.categorical(list(range(10))))
 
-datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin","disentanglement_lib/config/data/shapes3d.gin"])
+datasets = h.sweep("configs", ["disentanglement_lib/config/data/shapes3d.gin", "disentanglement_lib/config/data/dsprites.gin"])
 
 model_name = h.fixed("model.regularizers", "'[@vae()]'")
 betas = h.sweep("vae.beta", h.discrete([1., 6. , 10.]))
@@ -23,12 +23,12 @@ config_control_vae = h.zipit([model_name, model_setting1,model_setting2])
 
 all_models = h.chainit([config_beta_tc_vae,config_beta_vae,config_control_vae])
 
-all_experiemts = h.product([all_models,seeds, datasets])
+all_experiemts = h.product([seeds, datasets, all_models])
 for i,args in enumerate(all_experiemts):
     args = " ".join(map(lambda x:f"--{x[0]}={x[1]}",args.items()))
     cmd = f"{program} {args} --max_steps {training_steps}"
     print("Run: ", cmd)
     ret = os.system(cmd)
-    if ret!=-1:
+    if ret!=0:
         print('error! Stop at ', i)
         break
