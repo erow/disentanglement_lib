@@ -64,16 +64,8 @@ class UnsupervisedData(abc.ABC):
     transforms_list : list
         List of `torch.vision.transforms` to apply to the data when loading it.
     """
-    root = os.environ.get("DISENTANGLEMENT_LIB_DATA", ".")
-
-    def __init__(self, logger=logging.getLogger(__name__)):
-
-        self.logger = logger
-        self.supervision = False
-        if not os.path.isdir(self.root):
-            self.logger.info("Downloading {} ...".format(str(type(self))))
-            self.download()
-            self.logger.info("Finished Downloading.")
+    root= os.environ.get("DISENTANGLEMENT_LIB_DATA", ".")
+    supervision= False
 
     def sample_observations(self, batch_size, random_state: np.random.RandomState):
         indices = random_state.randint(len(self), size=(batch_size,))
@@ -82,10 +74,12 @@ class UnsupervisedData(abc.ABC):
             imgs.append(self[i][0].numpy())
 
         return np.array(imgs).reshape([-1, 64, 64, 1])
-
+    
     @property
     def observation_shape(self):
-        raise NotImplementedError()
+        x,_ = self[0]
+        return x.shape
+
 
     @abc.abstractmethod
     def __len__(self):
@@ -102,7 +96,3 @@ class UnsupervisedData(abc.ABC):
         """
         raise NotImplementedError()
 
-    @abc.abstractmethod
-    def download(self):
-        """Download the dataset. """
-        raise NotImplementedError()

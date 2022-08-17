@@ -20,7 +20,7 @@ from __future__ import print_function
 import os
 import time
 
-from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.data import named_data
 from disentanglement_lib.data.ground_truth import util
 from disentanglement_lib.data.ground_truth.ground_truth_data import *
 from disentanglement_lib.methods.shared import losses

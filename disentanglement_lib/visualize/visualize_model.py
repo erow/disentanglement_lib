@@ -24,7 +24,7 @@ import shutil
 
 import torch
 
-from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.data import named_data
 from disentanglement_lib.methods.unsupervised.train import Train
 from disentanglement_lib.utils import results
 from disentanglement_lib.utils.hub import convert_model

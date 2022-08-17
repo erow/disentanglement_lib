@@ -20,7 +20,7 @@ from __future__ import print_function
 import os
 import pathlib
 
-from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.data import named_data
 from disentanglement_lib.visualize import visualize_util
 import numpy as np
 from six.moves import range

@@ -1,0 +1,5 @@
+# example of model configuration
+exp_annealing.training_steps=200000
+exp_annealing.temp=6
+exp_annealing.beta_h=150
+model.regularizers=[@exp_annealing()]

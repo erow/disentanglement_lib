@@ -45,8 +45,9 @@ class Decomposition(Evaluation):
         self.ds = ds
     @torch.no_grad()
     def compute(self, model, train_dl=None):
-        """
+        """Compute the decomposition of the KL: TC, ML, and DWKL.
         reference: https://github.com/rtqichen/beta-tcvae/blob/master/elbo_decomposition.py
+        
         :param model:
         :param dataset_loader:
         :return: dict(): TC, MI, DWKL
@@ -121,6 +122,14 @@ class Decomposition(Evaluation):
 
 class ShowSamples(Evaluation):
     def __init__(self, every_n_step,ds,number=16,prefix="viz"):
+        """Show samples
+
+        Args:
+            every_n_step (_type_): _description_
+            ds (_type_): _description_
+            number (int, optional): _description_. Defaults to 16.
+            prefix (str, optional): _description_. Defaults to "viz".
+        """
         super().__init__(every_n_step,prefix)
         self.ds = ds
         self.number = number
@@ -144,6 +153,7 @@ class ShowSamples(Evaluation):
         model.train()
         log = {'samples':wandb.Image(fig)}
         return log
+
 class ComputeMetric(Evaluation):
     def __init__(self, every_n_step, metric_fn, dataset=None,prefix=""):
         super().__init__(every_n_step,prefix)

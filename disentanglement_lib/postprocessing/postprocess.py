@@ -25,7 +25,7 @@ import time
 import wandb
 from torch.utils.data import DataLoader, Dataset
 
-from disentanglement_lib.data.ground_truth import named_data
+from disentanglement_lib.data import named_data
 from disentanglement_lib.methods.unsupervised.gaussian_encoder_model import GaussianModel
 from disentanglement_lib.utils import results
 import numpy as np

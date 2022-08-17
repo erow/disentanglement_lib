@@ -14,7 +14,8 @@ from disentanglement_lib.data.unsupervised.unsupervied_data import UnsupervisedD
 from torchvision import transforms, datasets
 import gin
 
-gin.configurable('chairs')
+ROOT=os.environ.get("DISENTANGLEMENT_LIB_DATA", ".")
+
 class Chairs(datasets.ImageFolder, UnsupervisedData):
     """Chairs Dataset from [1].
 
@@ -36,19 +37,13 @@ class Chairs(datasets.ImageFolder, UnsupervisedData):
 
     """
 
-    @property
-    def observation_shape(self):
-        return [64, 64, 1]
-
     urls = {"train": "https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar"}
     files = {"train": "chairs_64"}
     img_size = (1, 64, 64)
 
     def __init__(self,
-                 root='/data/disentanglement',
                  logger=logging.getLogger(__name__)):
-        self.root = root
-        self.train_data = os.path.join(root, 'chairs', type(self).files["train"])
+        self.train_data = os.path.join(self.root, 'chairs', type(self).files["train"])
         self.transforms = transforms.Compose([transforms.Grayscale(),
                                               transforms.ToTensor()])
         self.logger = logger

@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import gin
 from pytorch_lightning.loggers.wandb import WandbLogger
 import wandb
-from disentanglement_lib.data.ground_truth.named_data import get_named_ground_truth_data
+from disentanglement_lib.data.ground_truth import get_named_ground_truth_data
 from disentanglement_lib.methods.shared.architectures import *
 from disentanglement_lib.methods.unsupervised import train
 from disentanglement_lib.methods.unsupervised import callbacks
