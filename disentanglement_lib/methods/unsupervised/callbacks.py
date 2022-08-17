@@ -149,6 +149,7 @@ class ComputeMetric(Evaluation):
         super().__init__(every_n_step,prefix)
         self.metric_fn = metric_fn
         self.dataset = dataset
+        self.representation_fun='mean'
 
     @torch.no_grad()
     def compute(self, model, train_dl) -> dict:
@@ -159,7 +160,10 @@ class ComputeMetric(Evaluation):
         def sample_latent(x):
             mu, logvar = _encoder(x)
             e = np.random.randn(*mu.shape)
-            return mu + np.exp(logvar/2) *e
+            if self.representation_fun=='mean':
+                return mu
+            else:
+                return mu + np.exp(logvar/2) *e
         if self.dataset is None:
             dataset = train_dl.dataset.datasets
         else:

@@ -407,39 +407,43 @@ class Discriminator(nn.Module):
 class FracEncoder(nn.Module):
     def __init__(self,
                 input_shape,
-                num_latent, G=5):
+                num_latent,
+                gamma=0.1, G=5):
         super().__init__()
         self.G=G
         self.num_latent = num_latent
-        assert num_latent % G==0
+        assert num_latent%G==0
         self.K=num_latent//G
-        self.sub_encoders = nn.Sequential(
+        self.gamma = gamma
+        self.encoders = nn.Sequential(
             *[conv_encoder(input_shape, self.K,8) for _ in range(G)])
-        self.projs = nn.Sequential(
-            *[Projection(self.K) for _ in range(G)])
-        self.set_stage(0)
+        self.stage = 0
         
     def set_stage(self, i):
-        if i>= self.G:
-            i = self.G
         self.stage = i
-        for i in range(min(self.stage, self.G)):
-            self.sub_encoders[i].requires_grad_(False)
-            
+
+    def grad_recay(self, grad):
+        return grad * self.gamma
+
     def forward(self, x):
         mus, logvars = [], []
+
         for i in range(self.G):
-            f = self.sub_encoders[i]
+            f = self.encoders[i]
             if i<self.stage:
                 mu, logvar = f(x)
-                mu, logvar = self.projs[i](mu.data,logvar.data)
+                if mu.requires_grad:
+                    mu.register_hook(self.grad_recay)
+                    logvar.register_hook(self.grad_recay)
+                mus.append(mu)
+                logvars.append(logvar)
             elif i ==self.stage:
                 mu, logvar = f(x)
+                mus.append(mu)
+                logvars.append(logvar)
             else:
-                mu = torch.zeros_like(mu)
-                logvar = torch.zeros_like(mu)
-            mus.append(mu)
-            logvars.append(logvar)
+                mus.append(torch.zeros_like(mu))
+                logvars.append(torch.zeros_like(mu))
         
         mu = torch.cat(mus,1)
         logvar = torch.cat(logvars,1)
@@ -476,9 +480,9 @@ class Projection(nn.Module):
 
     def forward(self, mu, logvar):
         z_mean1 = mu*self.W1.exp()
-        z_logvar1 = logvar + self.W2
+        z_logvar1 = logvar * self.W2.exp()
         return z_mean1, z_logvar1
     
     def extra_repr(self):
         return "W1: " + str((self.W1.exp()).data.cpu().numpy().round(2))+",\n"+\
-        "W2: " + str(self.W2.data.cpu().numpy().round(2))
+        "W2: " + str(self.W2.exp().data.cpu().numpy().round(2))
