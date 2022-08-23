@@ -21,7 +21,7 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_steps',type=int)
-    parser.add_argument('--configs', default=["model.gin"],nargs='+')
+    parser.add_argument('-c', '--configs', default=["model.gin"],nargs='+')
     
     args, unknown = parser.parse_known_args()
         
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     CALLBACK_STEPS = args.max_steps//5
     pl_model = PLModel()
     dataset = get_named_ground_truth_data()    
-    dl = torch.utils.data.DataLoader(dataset,64,num_workers=4,pin_memory=True, persistent_workers=True,)
+    dl = torch.utils.data.DataLoader(dataset,64,num_workers=4,pin_memory=True, shuffle=True )
     
     callbacks_fn = [
         callbacks.Traversal(CALLBACK_STEPS),

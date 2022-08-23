@@ -423,16 +423,17 @@ class CascadeVAEC(Regularizer):
 
 @gin.configurable("exp_annealing")
 class Annealing(Regularizer):
-    def __init__(self, training_steps=gin.REQUIRED,beta_h=150,temp=6):
+    def __init__(self, total_steps=gin.REQUIRED,warmup_steps=10000, beta_h=150,temp=6):
         super().__init__()
         self.beta_h = beta_h
-        self.total_steps = training_steps
+        self.total_steps = total_steps
+        self.warmup_steps=warmup_steps
         self.temp = temp
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        global_step = model.global_step
-        t=max(0.0,1 - float(global_step)/self.total_steps)
-        beta = self.beta_h*np.exp(-t*self.temp)
+        global_step = max(0, model.global_step - self.warmup_steps)
+        t=max(0.0, 1 - float(global_step)/self.total_steps)
+        beta = max(1, self.beta_h*np.exp(-t*self.temp))
         model.summary['beta'] = beta
         return beta * (kl.sum())
 

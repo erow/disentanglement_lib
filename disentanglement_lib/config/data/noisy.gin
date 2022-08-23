@@ -1,0 +1,3 @@
+dataset.name="noisy_dsprites"
+model.input_shape=[3,64,64]
+reconstruction_loss.loss_fn=@l2_loss

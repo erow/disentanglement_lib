@@ -147,7 +147,7 @@ class ShowSamples(Evaluation):
             recons = model.decode(z[:self.number]).data.sigmoid()
             break
 
-        pic = make_grid(torch.cat([recons,xs]).cpu(), int(np.sqrt(self.number)),pad_value=1)
+        pic = make_grid(torch.cat([recons,xs]).cpu(), 8,pad_value=1)
         fig = to_pil_image(pic)
 
         model.train()

@@ -1,0 +1,12 @@
+dataset.name="scream_dsprites"
+model.input_shape=[3,64,64]
+reconstruction_loss.loss_fn=@l2_loss
+
+model.regularizers=[@deft()]
+model.encoder_fn=@frac_encoder
+model.num_latent=12
+
+deft.stage_steps=100000
+deft.betas=[10, 7,5, 1.0]
+
+frac_encoder.G=4

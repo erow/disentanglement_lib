@@ -422,6 +422,9 @@ class FracEncoder(nn.Module):
         self.K=num_latent//G
         self.sub_encoders = nn.Sequential(
             *[conv_encoder(input_shape, self.K,8) for _ in range(G)])
+        self.projs = nn.ModuleList([
+            Projection(self.K) for _ in range(G)
+        ])
         self.stage = 0
         
     def set_stage(self, i):
@@ -430,18 +433,18 @@ class FracEncoder(nn.Module):
         Args:
             i (int): current stage.
         """
-        if i>= self.G:
+        if i> self.G:
             i = self.G
         self.stage = i
+        for j in range(i):
+            self.sub_encoders[j].requires_grad_(False)
 
-    def grad_recay(self, grad):
-        return grad * self.gamma
 
     def forward(self, x):
         mus, logvars = [], []
 
         for i in range(self.G):
-            f = self.encoders[i]
+            f = self.sub_encoders[i]
             if i<self.stage:
                 mu, logvar = f(x)
                 mu, logvar = self.projs[i](mu.data,logvar.data)
