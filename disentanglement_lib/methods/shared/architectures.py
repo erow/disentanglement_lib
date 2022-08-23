@@ -450,11 +450,11 @@ class FracEncoder(nn.Module):
                 mu, logvar = self.projs[i](mu.data,logvar.data)
             elif i ==self.stage:
                 mu, logvar = f(x)
-                mus.append(mu)
-                logvars.append(logvar)
             else:
-                mus.append(torch.zeros_like(mu))
-                logvars.append(torch.zeros_like(mu))
+                mu = torch.zeros_like(mu)
+                logvar = torch.zeros_like(logvar)
+            mus.append(torch.zeros_like(mu))
+            logvars.append(torch.zeros_like(mu))
         
         mu = torch.cat(mus,1)
         logvar = torch.cat(logvars,1)

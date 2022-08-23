@@ -1,5 +1,5 @@
 # disentanglement_lib-PyTorch!
-![Sample visualization](https://github.com/google-research/disentanglement_lib/blob/master/sample.gif?raw=true)
+![Sample visualization](https://github.com/erow/disentanglement_lib/blob/pytorch/sample.gif?raw=true)
 
 Most codes of **disentanglement_lib-PyTorch** are migrated from google's [disentanglement_lib](https://github.com/google-research/disentanglement_lib). 
 
@@ -41,4 +41,38 @@ cd disentanglement_lib
 pip install .
 ```
 
-# dlib_download_data
+# Dataset
+
+## Dowload
+
+``dlib_download_data``
+
+## Visualization
+
+`` dlib_visualize_dataset --name=shapes3d --path=outputs/shapes3d``
+
+## Load dataset
+
+The avaliable datasets in `named_data` are:
+- "dsprites_full"
+- "dsprites_noshape"
+- "dsprites_tiny"
+- "dsprites_test"
+- "color_dsprites"
+- "noisy_dsprites"
+- "scream_dsprites"
+- "smallnorb"
+- "cars3d"
+- "mpi3d_toy"
+- "mpi3d_realistic"
+- "mpi3d_real"
+- "shapes3d"
+- "dummy_data"
+- "translation"
+- "chairs"
+
+Call `get_named_ground_truth_data(name)` or set `dataset.name="name"` in **config.gin**.
+
+# RUN
+
+`dlib_run --model.regularizers="[@exp_annealing()]" --exp_annealing.total_steps=500000 --exp_annealing.beta_h=50 -c disentanglement_lib/config/data/scream.gin`
