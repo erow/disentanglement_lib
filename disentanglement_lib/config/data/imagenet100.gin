@@ -1,3 +1,4 @@
 dataset.name="image_folder:../imagenet100/train"
-model.input_shape=[3,64,64]
 reconstruction_loss.loss_fn=@l2_loss
+model.input_shape=[3,64,64]
+model.num_latent=128

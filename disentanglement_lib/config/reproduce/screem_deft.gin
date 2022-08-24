@@ -4,9 +4,9 @@ reconstruction_loss.loss_fn=@l2_loss
 
 model.regularizers=[@deft()]
 model.encoder_fn=@frac_encoder
-model.num_latent=12
+model.num_latent=10
 
-deft.stage_steps=10
-deft.betas=[10.0, 7.0, 5.0, 1.0]
+deft.stage_steps=200000
+deft.betas=[7.0, 1.0]
 
-frac_encoder.G=4
+frac_encoder.G=2

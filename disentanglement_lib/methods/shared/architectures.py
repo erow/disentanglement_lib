@@ -420,8 +420,8 @@ class FracEncoder(nn.Module):
         self.num_latent = num_latent
         assert num_latent % G==0
         self.K=num_latent//G
-        self.sub_encoders = nn.Sequential(
-            *[conv_encoder(input_shape, self.K,8) for _ in range(G)])
+        self.sub_encoders = nn.ModuleList(
+            [conv_encoder(input_shape, self.K,8) for _ in range(G)])
         self.projs = nn.ModuleList([
             Projection(self.K) for _ in range(G)
         ])
@@ -453,8 +453,8 @@ class FracEncoder(nn.Module):
             else:
                 mu = torch.zeros_like(mu)
                 logvar = torch.zeros_like(logvar)
-            mus.append(torch.zeros_like(mu))
-            logvars.append(torch.zeros_like(mu))
+            mus.append(mu)
+            logvars.append(logvar)
         
         mu = torch.cat(mus,1)
         logvar = torch.cat(logvars,1)

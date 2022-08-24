@@ -469,9 +469,8 @@ from math import exp
 class PIDControl(Regularizer):
     """docstring for ClassName"""
     def __init__(self,C=gin.REQUIRED,
-                 training_steps=gin.REQUIRED,
-                 init_C=0.5,
-                 step_value=0.15,
+                 total_steps=gin.REQUIRED,
+                 init_C=1,
                  step_iteration=5000,
                  Kp=0.01,
                  Ki= -0.001):
@@ -479,9 +478,9 @@ class PIDControl(Regularizer):
         # self.exp_KL = exp_KL
         super().__init__()
         self.C = C
-        self.training_steps=training_steps
-        self.current_C=init_C-step_value
-        self.step_value=step_value
+        self.total_steps=total_steps
+        self.current_C=init_C
+        self.step_value= (C - init_C)/(total_steps//step_iteration)
         self.step_iteration = step_iteration
         self.Kp=Kp
         self.Ki=Ki
@@ -524,18 +523,21 @@ class PIDControl(Regularizer):
         model.summary['e_t'] = error_k
         return kl_loss * Wk
     
+def step_fn(x):
+    return  x if x<0 else 0
 @gin.configurable('dynamic')
 class DynamicVAE(Regularizer):
-    def __init__(self,training_steps=gin.REQUIRED,C=gin.REQUIRED,K_p=-0.01,K_i= -0.005,beta_min=1.,beta_init=150.) -> None:
+    def __init__(self,total_steps=100000,C=11,K_p=-0.01,K_i= -0.005,beta_min=1.,beta_init=150.) -> None:
         super().__init__()
-        self.training_steps=training_steps
+        self.total_steps=total_steps
         self.C = C
         
         self.alpha=0.95
         self.K_p = K_p
         self.K_i = K_i
         self.beta_min = beta_min
-        self.step_fn = lambda x: x if x<0 else 0
+        
+        self.step_fn = step_fn
         
         self.y_t1 = 0.
         self.e_t1 = 0.
@@ -543,7 +545,7 @@ class DynamicVAE(Regularizer):
         
     
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        t = min(1,model.global_step/self.training_steps)
+        t = min(1,model.global_step/self.total_steps)
         kl_loss = kl.sum()
         y_t = self.alpha*kl_loss.item()+(1-self.alpha)*self.y_t1
         target = self.C*t
