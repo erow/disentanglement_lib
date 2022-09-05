@@ -25,7 +25,6 @@ import shutil
 import torch
 
 from disentanglement_lib.data import named_data
-from disentanglement_lib.methods.unsupervised.train import Train
 from disentanglement_lib.utils import results
 from disentanglement_lib.utils.hub import convert_model
 from disentanglement_lib.visualize import visualize_util
@@ -88,8 +87,8 @@ def visualize(model_dir,
     gin_dict = results.gin_dict(gin_config_file)
 
     # Automatically infer the activation function from gin config.
-    activation_str = gin_dict["reconstruction_loss.activation"]
-    if activation_str == "'logits'":
+    activation_str = gin_dict["reconstruction_loss.activation"] if "reconstruction_loss.activation" in gin_dict else None
+    if activation_str == "'logits'" or activation_str == None:
         activation = sigmoid
     elif activation_str == "'tanh'":
         activation = tanh

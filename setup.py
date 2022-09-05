@@ -29,6 +29,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     scripts=[
+        'bin/dlib_config',
         'bin/dlib_evaluate',
         'bin/dlib_visualize_dataset',
         'bin/dlib_visualize_model',

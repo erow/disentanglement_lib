@@ -192,12 +192,12 @@ class fc_discriminator(nn.Module):
         self.num_latent = num_latent
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(num_latent, 1000), nn.ReLU(),
-            nn.Linear(1000, 1000), nn.ReLU(),
-            nn.Linear(1000, 1000), nn.ReLU(),
-            nn.Linear(1000, 1000), nn.ReLU(),
-            nn.Linear(1000, 1000), nn.ReLU(),
-            nn.Linear(1000, 1000), nn.ReLU(),
+            nn.Linear(num_latent, 1000), nn.LeakyReLU(),
+            nn.Linear(1000, 1000), nn.LeakyReLU(),
+            nn.Linear(1000, 1000), nn.LeakyReLU(),
+            nn.Linear(1000, 1000), nn.LeakyReLU(),
+            nn.Linear(1000, 1000), nn.LeakyReLU(),
+            nn.Linear(1000, 1000), nn.LeakyReLU(),
             nn.Linear(1000, 2)
         )
 

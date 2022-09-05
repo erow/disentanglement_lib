@@ -28,7 +28,7 @@ from argparse import ArgumentParser
 
 from disentanglement_lib.methods.shared import architectures  # pylint: disable=unused-import
 from disentanglement_lib.methods.shared import losses  # pylint: disable=unused-import
-from six.moves import range
+from six.moves import range 
 from six.moves import zip
 import numpy as np
 import torch

@@ -1,0 +1,12 @@
+dataset.name="dsprites_full"
+model.input_shape=[1,64,64]
+# reconstruction_loss.loss_fn=@l2_loss
+
+model.regularizers=[@deft()]
+model.encoder_fn=@frac_encoder
+model.num_latent=10
+
+deft.stage_steps=100000
+deft.betas=[70.0,30.0,12.0,1.0]
+
+frac_encoder.G=5

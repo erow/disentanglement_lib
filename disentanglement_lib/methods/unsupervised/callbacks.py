@@ -1,8 +1,8 @@
 import os
-import gin
+from tkinter import Image
+import gin, wandb
 import numpy as np
 import torch
-import wandb
 from torch import nn
 
 from disentanglement_lib.methods.shared import losses
@@ -32,8 +32,9 @@ class Evaluation(Callback):
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_rank == 0 and (trainer.global_step+1) % self.every_n_step == 0:
             log = self.compute(pl_module, trainer.train_dataloader)
-            self.log={ self.prefix+k:v for k,v in log.items()}
-            wandb.log(log, step=trainer.global_step)
+            logger = trainer.logger
+            logger.agg_and_log_metrics({os.path.join(self.prefix,k):v for k,v in log.items()})
+                
 
     @torch.no_grad()
     def compute(self, model, train_dl=None):
@@ -148,11 +149,21 @@ class ShowSamples(Evaluation):
             break
 
         pic = make_grid(torch.cat([recons,xs]).cpu(), 8,pad_value=1)
-        fig = to_pil_image(pic)
+        fig: Image = to_pil_image(pic) 
 
         model.train()
-        log = {'samples':wandb.Image(fig)}
-        return log
+
+        trainer = model.trainer
+        logger = model.trainer.logger
+        # dirpath = os.path.join(trainer.log_dir, str(logger.name), logger.version)
+        try:
+            logger.experiment.log({os.path.join(self.prefix,'samples'):wandb.Image(fig)})
+        except Exception as e:
+            dirpath = logger.log_dir
+            print(e)
+            os.makedirs(os.path.join(dirpath,self.prefix),exist_ok=True)
+            fig.save(os.path.join(dirpath,self.prefix,f"samples_{trainer.global_step}.png"))
+        return {}
 
 class ComputeMetric(Evaluation):
     def __init__(self, every_n_step, metric_fn, dataset=None,prefix=""):
@@ -185,43 +196,6 @@ class ComputeMetric(Evaluation):
         model.train()
         return result
 
-class CheckpointEveryNSteps(pl.Callback):
-    """
-    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
-    based on validation loss.
-    """
-
-    def __init__(
-        self,
-        save_step_frequency,
-        prefix="N-Step-Checkpoint",
-        use_modelcheckpoint_filename=False,
-    ):
-        """
-        Args:
-            save_step_frequency: how often to save in steps
-            prefix: add a prefix to the name, only used if
-                use_modelcheckpoint_filename=False
-            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
-                default filename, don't use ours.
-        """
-        self.save_step_frequency = save_step_frequency
-        self.prefix = prefix
-        self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
-
-    def on_batch_end(self, trainer: pl.Trainer, _):
-        """ Check if we should save a checkpoint after every train batch """
-        epoch = trainer.current_epoch
-        global_step = trainer.global_step
-        if global_step % self.save_step_frequency == 0:
-            if self.use_modelcheckpoint_filename:
-                filename = trainer.checkpoint_callback.filename
-            else:
-                filename = f"{self.prefix}_{epoch}_{global_step}.ckpt"
-            ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
-            trainer.save_checkpoint(ckpt_path)
-
-
 class Traversal(Evaluation):
     def __init__(self, every_n_step,prefix="viz"):
         super().__init__(every_n_step,prefix)
@@ -230,6 +204,7 @@ class Traversal(Evaluation):
     def compute(self, model, train_dl) -> dict:                
         from disentanglement_lib.visualize.visualize_util import plt_sample_traversal
         device = model.device
+        trainer = model.trainer
         model.eval()
         model.cpu()
         _encoder, _decoder = model.convert()
@@ -238,16 +213,28 @@ class Traversal(Evaluation):
         fig = plt_sample_traversal(mu, _decoder, 8, range(num_latent), 2)
         model.to(device)
         model.train()
-        return {'traversal': wandb.Image(fig)}
+        
+        trainer = model.trainer
+        logger = model.trainer.logger
+        # dirpath = os.path.join(trainer.log_dir, str(logger.name), logger.version)
+        
+        try:
+            logger.experiment.log({os.path.join(self.prefix,'traversal'):wandb.Image(fig)})
+        except Exception as e:
+            dirpath = logger.log_dir
+            print(e)
+            os.makedirs(os.path.join(dirpath,self.prefix),exist_ok=True)
+            fig.savefig(os.path.join(dirpath,self.prefix,f"traversal_{trainer.global_step}.png"))
+        return {}
 
 class Projection(Evaluation):
     def __init__(self, every_n_step,dataset, factor_list,latent_list,
-        title="", key="projection",prefix="viz"):
+        title="", prefix="viz"):
         super().__init__(every_n_step,prefix)
         self.latent_list = latent_list
         self.factor_list = factor_list
-        self.key = key
-        self.title = title
+        self.title = str(factor_list)+"->"+str(latent_list)
+
         assert len(factor_list)==2 and len(latent_list) ==2
 
         factor_sizes = dataset.factors_num_values
@@ -294,9 +281,18 @@ class Projection(Evaluation):
         plt.xlabel("z="+str(self.latent_list[0]))
         plt.ylabel("z="+str(self.latent_list[1]))
 
-        log = {self.key:wandb.Image(fig)}
-        # plt.close(fig)
-        return log
+        
+        trainer = model.trainer
+        logger = model.trainer.logger
+        # dirpath = os.path.join(trainer.log_dir, str(logger.name), logger.version)
+        try:
+            logger.experiment.log({os.path.join(self.prefix,f'traversal_{self.title}'):wandb.Image(fig,caption=self.title)})
+        except Exception as e:
+            dirpath = logger.log_dir
+            print(e)
+            os.makedirs(os.path.join(dirpath,self.prefix),exist_ok=True)
+            fig.savefig(os.path.join(dirpath,self.prefix,f"traversal_{self.title}_{trainer.global_step}.png"))
+        return {}
 # note: not finished
 # class FactorMI(Evaluation):
 #     def compute(self, model, train_dl=None):

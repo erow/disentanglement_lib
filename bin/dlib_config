@@ -1,0 +1,15 @@
+#!env python
+from disentanglement_lib import config
+import glob, os, shutil
+
+path = os.path.dirname(config.__file__)
+conf = glob.glob( path + "/**/*.gin",recursive=True)
+
+for file in conf:
+    f = file[len(path)+1:]
+    tarf = "config/"+f
+    if not os.path.exists(tarf):
+        os.makedirs(os.path.dirname(tarf),exist_ok=True)
+        shutil.copy2(file,tarf)
+        print(f)
+    

@@ -9,7 +9,7 @@ logging.getLogger().addHandler(logging.StreamHandler())
 os.environ['WANDB_ENTITY']='dlib'
 os.environ['WANDB_TAGS']='hyperparameter'
 
-training_steps = int(1e6/5)
+training_steps = int(5e5)
 program = "python exps/decrement.py"
 
 seeds = h.sweep("model.seed",h.categorical(list(range(5))))

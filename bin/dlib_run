@@ -11,17 +11,21 @@ from disentanglement_lib.methods.unsupervised.train import DataModule , PLModel,
 from disentanglement_lib.methods.unsupervised import callbacks
 from disentanglement_lib.data.named_data import get_named_ground_truth_data
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 import torch
 import os
 import argparse
 import pathlib
 import shutil
 import gin
-from pytorch_lightning.loggers.wandb import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, CSVLogger, TensorBoardLogger
+
+from disentanglement_lib.utils.results import save_gin
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_steps',type=int,default=1000)
     parser.add_argument('-c', '--configs', default=["model.gin"],nargs='+')
+    parser.add_argument('--wandb', action='store_true', default=False)
     
     args, unknown = parser.parse_known_args()
         
@@ -43,15 +47,25 @@ if __name__ == '__main__':
     
     callbacks_fn = [
         callbacks.Traversal(CALLBACK_STEPS),
-        callbacks.ShowSamples(CALLBACK_STEPS//4,dataset),
+        callbacks.ShowSamples(CALLBACK_STEPS//5,dataset),
+        ModelCheckpoint(),
     ]
     if dataset.supervision: 
         callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
+
+    if not args.wandb:
+        logger = CSVLogger('outputs',name='run')
+        
+    else:
+        logger = WandbLogger(save_dir='outputs',sync_step=False)
+
     trainer = pl.Trainer(
-        WandbLogger(save_dir='outputs'),
+        logger,
         accelerator='gpu', devices=1,
         max_steps=args.max_steps,
         callbacks=callbacks_fn,
     )
     trainer.fit(pl_model, dl)
+
+    save_gin(os.path.join(logger.log_dir,"model.gin"))
     

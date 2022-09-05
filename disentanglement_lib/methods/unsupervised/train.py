@@ -82,6 +82,7 @@ class PLModel(pl.LightningModule):
         super().__init__(**kwargs)
         pl.seed_everything(seed)
         self.save_hyperparameters(config_dict())
+        
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
         self.decode = decoder_fn(num_latent=num_latent, output_shape=input_shape)
         self.num_latent = num_latent
