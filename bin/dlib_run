@@ -24,6 +24,7 @@ from disentanglement_lib.utils.results import save_gin
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_steps',type=int,default=1000)
+    parser.add_argument('--output_dir',type=str,default='outputs')
     parser.add_argument('-c', '--configs', default=["model.gin"],nargs='+')
     parser.add_argument('--wandb', action='store_true', default=False)
     
@@ -40,24 +41,24 @@ if __name__ == '__main__':
         
     print(gin.config_str())
     
-    CALLBACK_STEPS = args.max_steps//5
+    CALLBACK_STEPS = args.max_steps//1
     pl_model = PLModel()
     dataset = get_named_ground_truth_data()    
-    dl = torch.utils.data.DataLoader(dataset,64,num_workers=4,pin_memory=True, shuffle=True )
+    dl = torch.utils.data.DataLoader(dataset,256,num_workers=4,pin_memory=True, shuffle=True )
     
     callbacks_fn = [
         callbacks.Traversal(CALLBACK_STEPS),
-        callbacks.ShowSamples(CALLBACK_STEPS//5,dataset),
+        callbacks.ShowSamples(CALLBACK_STEPS,dataset),
         ModelCheckpoint(),
     ]
-    if dataset.supervision: 
-        callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
+    # if dataset.supervision: 
+    #     callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
 
     if not args.wandb:
-        logger = CSVLogger('outputs',name='run')
+        logger = CSVLogger(args.output_dir,name='run')
         
     else:
-        logger = WandbLogger(save_dir='outputs',sync_step=False)
+        logger = WandbLogger(save_dir=args.output_dir,sync_step=False)
 
     trainer = pl.Trainer(
         logger,

@@ -14,50 +14,79 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Evaluation module for disentangled representations."""
+"""Evaluation module for disentangled representations.
+Example:
+import os, gin
+import glob
+import argparse
+import numpy as np
+from disentanglement_lib.evaluation import evaluate
+models = glob.glob('../outputs/saved_results/main/*/*.gin',recursive=True)
+
+for file in models[-2::-1]:
+    ckpt = glob.glob(os.path.dirname(file)+"/checkpoints/*.ckpt")
+    steps = [int(i.split('step=')[1].split('.ckpt')[0]) for i in ckpt]
+    last = ckpt[np.argmax(steps)]
+    args = argparse.Namespace(
+        output_dir = os.path.dirname(file),
+        model_config=file,checkpoint=last,
+        evaluation_config=[ "../disentanglement_lib/config/unsupervised_study_v1/metric_configs/" + i 
+            for i in ["mig.gin","dci.gin","factor_vae_metric.gin"]
+            ],
+        overwrite=False)
+
+    summary = {}
+    for gin_eval_config in (args.evaluation_config):
+        metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
+        metric_dir = os.path.join(args.output_dir, 'metrics', metric_name)
+        gin_config_files = [gin_eval_config, args.model_config]
+        gin_bindings = [
+            "evaluation.name = '{}'".format(metric_name)
+        ]
+        try:
+            gin.clear_config()
+            res=evaluate.evaluate_with_gin(args.checkpoint, metric_dir, args.overwrite,
+                                        gin_config_files, gin_bindings)
+            if res: summary.update(res)
+        except Exception as e:
+            print(e)   
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os
-from absl import app
-from absl import flags
+import os, gin
 import glob
+import argparse
+import numpy as np
 from disentanglement_lib.evaluation import evaluate
 
-FLAGS = flags.FLAGS
-
-flags.DEFINE_string("input_dir", None, "Directory to take trained "
-                                       "representation from.")
-flags.DEFINE_string("output_dir", 'evaluation', "Directory to save scores to.")
-flags.DEFINE_multi_string("gin_config", None,
-                          "List of paths to the config files.")
-flags.DEFINE_multi_string("gin_bindings", None,
-                          "Newline separated list of Gin parameter bindings.")
-flags.DEFINE_string("gin_evaluation_config_glob", None,
-                    "Path to glob pattern to evaluation configs.")
-flags.DEFINE_boolean("overwrite", False,
-                     "Whether to overwrite output directory.")
+parser = argparse.ArgumentParser()
+parser.add_argument("--output_dir", help="Directory to save results.")         
+parser.add_argument("--model_config",type=str)                          
+parser.add_argument("--checkpoint", help="Patch of the checkpoint.")                              
+parser.add_argument("-c", "--evaluation_config", default=None, nargs='+',
+                          help="List of paths to the config files. One config file refers to one metric.")
+parser.add_argument("--overwrite", default=False, action='store_true')
 
 
-def main(unused_argv):
+def main(args):
     # We either allow multiple scores to be computed via the
     # gin_evaluation_config_glob flag or a single score via the gin_config and
     # gin_bindings flags.
-    if FLAGS.gin_evaluation_config_glob is not None:
-        for gin_eval_config in sorted(glob.glob(FLAGS.gin_evaluation_config_glob)):
-            metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
-            metric_dir = os.path.join(FLAGS.output_dir, metric_name)
-            gin_config_files = [gin_eval_config]
-            gin_bindings = [
-                "evaluation.name = '{}'".format(metric_name)
-            ]
-            evaluate.evaluate_with_gin(FLAGS.input_dir, metric_dir, FLAGS.overwrite,
-                                       gin_config_files, gin_bindings)
-    else:
-        evaluate.evaluate_with_gin(FLAGS.input_dir, FLAGS.output_dir,
-                                   FLAGS.overwrite, FLAGS.gin_config,
-                                   FLAGS.gin_bindings)
+    summary = {}
+    for gin_eval_config in sorted(glob.glob(args.evaluation_config)):
+        metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
+        metric_dir = os.path.join(args.output_dir, metric_name)
+        gin_config_files = [gin_eval_config, args.model_config]
+        gin_bindings = [
+            "evaluation.name = '{}'".format(metric_name)
+        ]
+        res=evaluate.evaluate_with_gin(args.checkpoint, metric_dir, args.overwrite,
+                                    gin_config_files, gin_bindings)
+        summary.update(res)
+    return summary
 
 
 if __name__ == "__main__":
-    app.run(main)
+    args = parser.parse_args()
+    main(args)

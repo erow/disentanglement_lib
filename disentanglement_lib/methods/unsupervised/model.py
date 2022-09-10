@@ -74,10 +74,13 @@ def shuffle_codes(z):
     return shuffled
 
 
-def compute_gaussian_kl(z_mean, z_logvar):
+def compute_gaussian_kl(z_mean, z_logvar,weight=None):
     """Compute KL divergence between input Gaussian and Standard Normal."""
-    return 0.5 * torch.mean(
-        torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1, [0])
+    kl =torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1
+    if weight is None:
+        return 0.5 * torch.mean(kl, [0])
+    else:
+        return 0.5 * torch.mean(kl*weight[:,None], [0])
 
 
 def make_metric_fn(*names):
@@ -339,7 +342,7 @@ def total_correlation(z, z_mean, z_logvar):
       z_mean: [batch_size, num_latents]-tensor with mean of the encoder.
       z_logvar: [batch_size, num_latents]-tensor with log variance of the encoder.
 
-    Returns:
+    Returns:`
       Total correlation estimated on a batch.
     """
     # Compute log(q(z(x_j)|x_i)) for every sample in the batch, which is a

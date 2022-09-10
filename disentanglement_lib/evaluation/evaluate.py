@@ -43,13 +43,13 @@ from disentanglement_lib.evaluation.metrics import unified_scores  # pylint: dis
 from disentanglement_lib.evaluation.metrics import unsupervised_metrics  # pylint: disable=unused-import
 from disentanglement_lib.evaluation.metrics import udr
 from disentanglement_lib.evaluation.representation_fn import mean_representation
-from disentanglement_lib.methods.unsupervised.train import Train
+from disentanglement_lib.methods.unsupervised.train import *
 from disentanglement_lib.postprocessing.convert_representation import concat_representation
 from disentanglement_lib.utils import results
 import numpy as np
 import gin
 
-from disentanglement_lib.utils.hub import get_model, convert_model
+from disentanglement_lib.utils.hub import get_model
 
 
 def evaluate_with_gin(model_dir,
@@ -81,11 +81,11 @@ def evaluate_with_gin(model_dir,
 
 
 @gin.configurable(
-    "evaluation", denylist=["model_dir", "output_dir", "overwrite"])
-def evaluate(model_dir,
+    "evaluation", denylist=["output_dir", "output_dir", "overwrite"])
+def evaluate(checkpoint,
              output_dir,
              overwrite=False,
-             representation_fn=mean_representation,
+             representation_fn = mean_representation,
              evaluation_fn=gin.REQUIRED,
              random_seed=gin.REQUIRED,
              name=""):
@@ -111,17 +111,6 @@ def evaluate(model_dir,
     # Set up time to keep track of elapsed time in results.
     experiment_timer = time.time()
 
-    # Automatically set the proper data set if necessary. We replace the active
-    # gin config as this will lead to a valid gin config file where the data set
-    # is present.
-    if gin.query_parameter("dataset.name") == "auto":
-        # Obtain the dataset name from the gin config of the previous step.
-        gin_config_file = os.path.join(model_dir, "results", "gin",
-                                       "postprocess.gin")
-        gin_dict = results.gin_dict(gin_config_file)
-        with gin.unlock_config():
-            gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
-                "'", ""))
     dataset = named_data.get_named_ground_truth_data()
     shape = dataset.observation_shape
 
@@ -130,29 +119,21 @@ def evaluate(model_dir,
     # variables = np.load(os.path.join(model_dir, 'representation.npy'), allow_pickle=True)
     # variables = variables[()]
     # distributions = concat_representation(dataset, variables)
-    model = get_model(model_dir, img_shape=[shape[2], shape[0], shape[1]])
-    _encode, _decoder = convert_model(model)
+    model = get_model(checkpoint)
+    _encode, _decoder = model.convert()
 
-    def fn(distribute):
-        return representation_fn(_encode(distribute))
-
-    artifact_dir = os.path.join(model_dir, "artifacts", name)
     results_dict = evaluation_fn(
         dataset,
-        fn,
+        lambda x: mean_representation(_encode(x)),
         random_state=np.random.RandomState(random_seed),
-        artifact_dir=artifact_dir)
+        )
 
     # Save the results (and all previous results in the pipeline) on disk.
-    original_results_dir = os.path.join(model_dir, "results")
     results_dir = os.path.join(output_dir, "results")
     results_dict["elapsed_time"] = time.time() - experiment_timer
     results.update_result_directory(results_dir, "evaluation", results_dict)
-
-    import wandb
-    if wandb.run:
-        wandb.summary.update(results_dict)
-        wandb.save(f"{results_dir}/aggregate/evaluation.json", base_path=output_dir)
+    return results_dict
+    
 
 
 if __name__ == '__main__':
