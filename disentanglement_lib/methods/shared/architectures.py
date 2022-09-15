@@ -23,10 +23,81 @@ import os
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
+
 from torchvision.models.resnet import BasicBlock
 import gin
 
+class Block(nn.Module):
+    r""" ConvNeXt Block. There are two equivalent implementations:
+    (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
+    (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
+    We use (2) as we find it slightly faster in PyTorch
+    
+    Args:
+        dim (int): Number of input channels.
+        drop_path (float): Stochastic depth rate. Default: 0.0
+        layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
+    """
+    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
+        super().__init__()
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=5, padding=2, groups=dim) # depthwise conv
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+        self.act = nn.GELU()
+        self.pwconv2 = nn.Linear(4 * dim, dim)
+        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)), 
+                                    requires_grad=True) if layer_scale_init_value > 0 else None
+        self.drop_path = nn.DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+    def forward(self, x):
+        input = x
+        x = self.dwconv(x)
+        x = x.permute(0, 2, 3, 1) # (N, C, H, W) -> (N, H, W, C)
+        x = self.norm(x)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.pwconv2(x)
+        if self.gamma is not None:
+            x = self.gamma * x
+        x = x.permute(0, 3, 1, 2) # (N, H, W, C) -> (N, C, H, W)
+
+        x = input + self.drop_path(x)
+        return x
+
+class View(nn.Module):
+    def __init__(self, shape):
+        super().__init__()
+        self.register_buffer('shape', torch.LongTensor(shape))
+
+    def forward(self, x):
+        return x.view(*self.shape)
+
+class LayerNorm(nn.Module):
+    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 
+    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with 
+    shape (batch_size, height, width, channels) while channels_first corresponds to inputs 
+    with shape (batch_size, channels, height, width).
+    """
+    def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.bias = nn.Parameter(torch.zeros(normalized_shape))
+        self.eps = eps
+        self.data_format = data_format
+        if self.data_format not in ["channels_last", "channels_first"]:
+            raise NotImplementedError 
+        self.normalized_shape = (normalized_shape, )
+    
+    def forward(self, x):
+        if self.data_format == "channels_last":
+            return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+        elif self.data_format == "channels_first":
+            u = x.mean(1, keepdim=True)
+            s = (x - u).pow(2).mean(1, keepdim=True)
+            x = (x - u) / torch.sqrt(s + self.eps)
+            x = self.weight[:, None, None] * x + self.bias[:, None, None]
+            return x  
 
 @gin.configurable("fc_encoder", allowlist=[])
 class fc_encoder(nn.Module):
@@ -121,14 +192,6 @@ class fc_decoder(nn.Module):
         x = self.net(latent_tensor)
         return torch.reshape(x, shape=[-1] + self.output_shape)
 
-
-class View(nn.Module):
-    def __init__(self, shape):
-        super().__init__()
-        self.register_buffer('shape', torch.LongTensor(shape))
-
-    def forward(self, x):
-        return x.view(*self.shape)
 
 
 @gin.configurable("deconv_decoder", allowlist=[])
@@ -292,97 +355,123 @@ class lite_decoder(nn.Module):
 
 @gin.configurable("deep_decoder", allowlist=[])
 class DeepConvDecoder(nn.Module):
-    def __init__(self, num_latent, output_shape, width=256):
+    def __init__(self, num_latent, input_shape,
+                 depths=[3, 9, 3, 3], dims=[384, 192, 96, 48], drop_path_rate=0., 
+                 layer_scale_init_value=1e-6, head_init_scale=1.,
+                 ):
         super().__init__()
-        self.output_shape = output_shape
+        self.input_shape = input_shape
         self.num_latent = num_latent
-        self.width = width
+        self.map_size=input_shape[-1]//16
+        
+        self.upsample_layers = nn.ModuleList() # stem and 3 intermediate downsampling conv layers
+        out_chans = input_shape[0]
+        
+        self.head = nn.Linear(num_latent,dims[0])
+        self.norm = nn.LayerNorm(num_latent, eps=1e-6) # final norm layer
+        # self.tail = nn.Conv2d(out_chans,out_chans,kernel_size=1)
+        
+        dims.append(out_chans)
+        for i in range(4):
+            upsample_layer = nn.Sequential(
+                    LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                    nn.ConvTranspose2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+            )
+            self.upsample_layers.append(upsample_layer)
 
-        def block(in_feat, out_feat, size):
-            layers = [BasicBlock(in_feat, in_feat),
-                      BasicBlock(in_feat, in_feat),
-                      nn.UpsamplingBilinear2d(size),
-                      nn.Conv2d(in_feat, out_feat, kernel_size=(1, 1))]
-            return layers
+        self.stages = nn.ModuleList() # 4 feature resolution stages, each consisting of multiple residual blocks
+        dp_rates=[x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))] 
+        cur = 0
+        for i in range(4):
+            stage = nn.Sequential(
+                *[Block(dim=dims[i], drop_path=dp_rates[cur + j], 
+                layer_scale_init_value=layer_scale_init_value) for j in range(depths[i])]
+            )
+            self.stages.append(stage)
+            cur += depths[i]
 
-        self.convert_2d = nn.Sequential(
-            nn.Linear(num_latent, width * 2), nn.ReLU(0.02),
-            nn.Linear(width * 2, 4 * 4 * width),
-        )
+        self.apply(self._init_weights)
+        self.head.weight.data.mul_(head_init_scale)
+        self.head.bias.data.mul_(head_init_scale)
 
-        c, h, w = output_shape
-        conv_blocks = []
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Conv2d, nn.Linear)):
+            nn.init.trunc_normal_(m.weight, std=.02)
+            nn.init.constant_(m.bias, 0)
 
-        ch, cw = 4, 4
-        c_in = width
-        while min(h / ch, w / cw) > 2:
-            conv_blocks += block(c_in, c_in // 2, [ch * 2, cw * 2])
-            c_in = c_in // 2
-            ch, cw = ch * 2, cw * 2
-        conv_blocks += (block(c_in, c_in // 2, [h, w]))  # same size
-        c_in = c_in // 2
+    def forward_features(self, x):
+        for i in range(4):
+            x = self.stages[i](x)
+            x = self.upsample_layers[i](x)
+        return x
 
-        conv_blocks = conv_blocks + [
-            nn.ReLU(0.02),
-            nn.Conv2d(c_in, c, (5, 5), padding=2)
-        ]
-        # same channel
-        self.conv = nn.Sequential(*conv_blocks)
+    def forward(self, x):
+        x = self.norm(x)
+        x = self.head(x)[:,:,None,None]
+        x = x.repeat(1,1,self.map_size,self.map_size) # global repeating, (N, C) -> (N, C, H, W)
+        x = self.forward_features(x)
+        return x
 
-    def forward(self, z):
-        img = self.convert_2d(z).view(z.size(0), self.width, 4, 4)
-        img = self.conv(img)
-        return img
 
 
 @gin.configurable("deep_encoder", allowlist=[])
 class DeepConvEncoder(nn.Module):
-    def __init__(self, input_shape, num_latent, width=256):
+    def __init__(self, input_shape, num_latent, 
+                 depths=[3, 3, 9, 3], dims=[48, 96, 192, 384], drop_path_rate=0., 
+                 layer_scale_init_value=1e-6, head_init_scale=1.,
+                 ):
         super().__init__()
         self.input_shape = input_shape
         self.num_latent = num_latent
-        self.width = width
-
-        def block(in_feat, out_feat, size):
-            layers = [
-                nn.Conv2d(in_feat, out_feat, kernel_size=1),
-                BasicBlock(out_feat, out_feat),
-                nn.AvgPool2d(2, 2)
-            ]
-            return layers
-
-        self.convert_1d = nn.Sequential(
-            nn.Linear(4 * 4 * width, width * 2), nn.ReLU(0.02),
-            nn.LayerNorm(width * 2),
-            nn.Linear(width * 2, num_latent * 2)
+        
+        self.downsample_layers = nn.ModuleList() # stem and 3 intermediate downsampling conv layers
+        in_chans = input_shape[0]
+        
+        stem = nn.Sequential(
+            nn.Conv2d(in_chans, dims[0], kernel_size=1, stride=1), # do not down-sampling
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
         )
+        self.downsample_layers.append(stem)
+        for i in range(3):
+            downsample_layer = nn.Sequential(
+                    LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
+                    nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+            )
+            self.downsample_layers.append(downsample_layer)
 
-        c, h, w = input_shape
-        conv_blocks = [
-            nn.Conv2d(c, 64, 5, 2, padding=2), nn.ReLU(0.02)
-        ]
+        self.stages = nn.ModuleList() # 4 feature resolution stages, each consisting of multiple residual blocks
+        dp_rates=[x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))] 
+        cur = 0
+        for i in range(4):
+            stage = nn.Sequential(
+                *[Block(dim=dims[i], drop_path=dp_rates[cur + j], 
+                layer_scale_init_value=layer_scale_init_value) for j in range(depths[i])]
+            )
+            self.stages.append(stage)
+            cur += depths[i]
 
-        ch, cw = h // 2, w // 2
-        c_in = 64
-        while min(ch // 4, cw // 4) > 2:
-            t_in = min(width, c_in * 2)
-            conv_blocks += block(c_in, t_in, [ch // 2, cw // 2])
-            c_in = t_in
-            ch, cw = ch // 2, cw // 2
+        self.norm = nn.LayerNorm(dims[-1], eps=1e-6) # final norm layer
+        self.head = nn.Linear(dims[-1], num_latent*2)
 
-        conv_blocks += [
-            nn.Conv2d(c_in, width, kernel_size=1),
-            BasicBlock(width, width),
-            nn.AdaptiveAvgPool2d([4, 4]),
-        ]
+        self.apply(self._init_weights)
+        self.head.weight.data.mul_(head_init_scale)
+        self.head.bias.data.mul_(head_init_scale)
 
-        self.conv = nn.Sequential(*conv_blocks)
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Conv2d, nn.Linear)):
+            nn.init.trunc_normal_(m.weight, std=.02)
+            nn.init.constant_(m.bias, 0)
+
+    def forward_features(self, x):
+        for i in range(4):
+            x = self.downsample_layers[i](x)
+            x = self.stages[i](x)
+        return self.norm(x.mean([-2, -1])) # global average pooling, (N, C, H, W) -> (N, C)
 
     def forward(self, x):
-        img = self.conv(x)
-        feature = self.convert_1d(img.reshape(x.size(0), 4 * 4 * self.width))
-        mu, logvar = torch.split(feature, [self.num_latent] * 2, 1)
-        return mu, logvar
+        x = self.forward_features(x)
+        x = self.head(x)
+        return x.chunk(2,1)
 
 
 class Discriminator(nn.Module):

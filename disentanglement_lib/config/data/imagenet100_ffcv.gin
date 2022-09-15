@@ -1,4 +1,4 @@
-dataset.name="image_folder:../imagenet100/train"
+dataset.name="ffcv:../imagenet100/train_64_0.50_90.ffcv"
 reconstruction_loss.loss_fn=@l2_loss
 model.input_shape=[3,64,64]
 model.num_latent=1024
