@@ -41,18 +41,19 @@ if __name__ == '__main__':
         
     print(gin.config_str())
     
-    CALLBACK_STEPS = args.max_steps//1
+    CALLBACK_STEPS = args.max_steps//5
     pl_model = PLModel()
     dataset = get_named_ground_truth_data()    
     dl = torch.utils.data.DataLoader(dataset,256,num_workers=4,pin_memory=True, shuffle=True )
     
+    
     callbacks_fn = [
-        callbacks.Traversal(CALLBACK_STEPS),
-        callbacks.ShowSamples(CALLBACK_STEPS,dataset),
-        ModelCheckpoint(),
+        # callbacks.Traversal(CALLBACK_STEPS),
+        # callbacks.ShowSamples(CALLBACK_STEPS,dataset),
+        ModelCheckpoint(every_n_train_steps=CALLBACK_STEPS), # save last
     ]
-    # if dataset.supervision: 
-    #     callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
+    if dataset.supervision: 
+        callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
 
     if not args.wandb:
         logger = CSVLogger(args.output_dir,name='run')
@@ -60,13 +61,23 @@ if __name__ == '__main__':
     else:
         logger = WandbLogger(save_dir=args.output_dir,sync_step=False)
 
+
     trainer = pl.Trainer(
         logger,
         accelerator='gpu', devices=1,
         max_steps=args.max_steps,
         callbacks=callbacks_fn,
+        # enable_progress_bar=False,
+        # checkpoint_callback=False,
+        weights_summary=None,
     )
     trainer.fit(pl_model, dl)
 
-    save_gin(os.path.join(logger.log_dir,"model.gin"))
+    # save all config
+    for cb in trainer.callbacks:
+        if isinstance(cb,ModelCheckpoint): 
+            save_path = os.path.join(cb.dirpath,'../')
+            save_gin(os.path.join(save_path, "model.gin"))
+            print(save_path)
+    
     

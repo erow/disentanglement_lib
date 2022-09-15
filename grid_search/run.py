@@ -6,9 +6,9 @@ import logging
 training_steps = int(3e5)
 program = "dlib_run"
 
-seeds = h.sweep("model.seed",h.categorical(list(range(15,20))))
+seeds = h.sweep("model.seed",h.categorical(list(range(10,15))))
 
-datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin"])
+datasets = h.sweep("configs", ["disentanglement_lib/config/data/shapes3d.gin"])
 
 model_name = h.fixed("model.regularizers", "'[@vae()]'")
 betas = h.sweep("vae.beta", h.discrete([1., 6. ]))

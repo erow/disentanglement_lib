@@ -302,8 +302,7 @@ class DIPVAE(Regularizer):
 
 
 def gaussian_log_density(samples, mean, log_var):
-    pi = torch.tensor(math.pi, device=samples.device)
-    normalization = torch.log(2. * pi)
+    normalization = np.log(2. * math.pi)
     inv_sigma = torch.exp(-log_var)
     tmp = (samples - mean)
     return -0.5 * (tmp * tmp * inv_sigma + log_var + normalization)

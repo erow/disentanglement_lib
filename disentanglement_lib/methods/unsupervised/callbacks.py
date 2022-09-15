@@ -31,10 +31,14 @@ class Evaluation(Callback):
 
     def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if trainer.global_rank == 0 and (trainer.global_step+1) % self.every_n_step == 0:
-            log = self.compute(pl_module, trainer.train_dataloader)
             logger = trainer.logger
-            logger.agg_and_log_metrics({os.path.join(self.prefix,k):v for k,v in log.items()})
-                
+            log = self.compute(pl_module, trainer.train_dataloader)
+            try:
+                logger.log_metrics({os.path.join(self.prefix,k):v for k,v in log.items()})
+            except Exception as e:
+                print(e)
+                # logger.log_metrics(log)
+
 
     @torch.no_grad()
     def compute(self, model, train_dl=None):
@@ -128,7 +132,7 @@ class ShowSamples(Evaluation):
         Args:
             every_n_step (_type_): _description_
             ds (_type_): _description_
-            number (int, optional): _description_. Defaults to 16.
+            number (int, optional): _description_. Defaults to 16, must be 8x.
             prefix (str, optional): _description_. Defaults to "viz".
         """
         super().__init__(every_n_step,prefix)
@@ -157,7 +161,7 @@ class ShowSamples(Evaluation):
         logger = model.trainer.logger
         # dirpath = os.path.join(trainer.log_dir, str(logger.name), logger.version)
         try:
-            logger.experiment.log({os.path.join(self.prefix,'samples'):wandb.Image(fig)})
+            logger.experiment.log({os.path.join(self.prefix,'samples'):wandb.Image(fig)})   
         except Exception as e:
             dirpath = logger.log_dir
             print(e)

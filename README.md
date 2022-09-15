@@ -4,6 +4,9 @@
 Most codes of **disentanglement_lib-PyTorch** are migrated from google's [disentanglement_lib](https://github.com/google-research/disentanglement_lib). 
 
 This project applies pytorch lightning to train the model in `disentanglement_lib.methods.unsupervised.train`. All disentanglement methods in `disentanglement_lib.methods.unsupervised.model` can be used independently.
+
+
+[See Example in Colab](https://colab.research.google.com/drive/1qqUl1kLtKCaDiJePyCkil0Vgy0KNaP9o?usp=sharing)
 # What's new
 
 ## Flexible configuration
@@ -133,3 +136,4 @@ for i,args in enumerate(all_experiemts):
         print('error! Stop at ', i)
         break
 ```
+
