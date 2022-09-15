@@ -143,6 +143,11 @@ class PLModel(pl.LightningModule):
         torch.save(self.state_dict(), file_path)
 
     def convert(self, device='cpu'):
+        """Convert model to fit numpy format inputs and outputs.
+
+        Args:
+            device (str, optional): Defaults to 'cpu'.
+        """
         def _decoder(latent_vectors,*args):
             with torch.no_grad():
                 z = torch.FloatTensor(latent_vectors).to(device)

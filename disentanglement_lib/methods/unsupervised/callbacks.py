@@ -139,13 +139,13 @@ class ShowSamples(Evaluation):
     def compute(self, model, train_dl=None):
         device = model.device
         model.eval()
-        for samples in DataLoader(self.ds,self.number,num_workers=4,shuffle=True):
+        for samples in train_dl:
             xs, _ = samples
             batch_size = xs.size(0)
-            xs = xs.view(batch_size, -1, 64, 64).to(device)
+            xs = xs[:min(batch_size,self.number)].to(device)
             mu, logvar = model.encode(xs)
             z =sample_from_latent_distribution(mu, logvar)
-            recons = model.decode(z[:self.number]).data.sigmoid()
+            recons = model.decode(z).data.sigmoid()
             break
 
         pic = make_grid(torch.cat([recons,xs]).cpu(), 8,pad_value=1)

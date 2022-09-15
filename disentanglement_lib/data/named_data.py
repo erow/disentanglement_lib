@@ -80,5 +80,9 @@ def get_named_ground_truth_data(name="auto"):
         if "image_folder" in name:
             path = name.split(':')[1]
             return ImageFolder(path)
+        elif "ffcv" in name:
+            path = name.split(':')[1]
+            from disentanglement_lib.data.unsupervised import ffcv_data
+            return ffcv_data.FFCV_DATA(path)
     
     raise ValueError("Invalid data set name. ---"+name)
