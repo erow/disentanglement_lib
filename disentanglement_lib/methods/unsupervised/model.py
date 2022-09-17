@@ -529,10 +529,14 @@ def step_fn(x):
     return  x if x<0 else 0
 @gin.configurable('dynamic')
 class DynamicVAE(Regularizer):
-    def __init__(self,total_steps=100000,C=11,K_p=-0.01,K_i= -0.005,beta_min=1.,beta_init=150.) -> None:
+    def __init__(self,
+        K=gin.REQUIRED,total_steps=gin.REQUIRED,
+        C=11,K_p=0.01,K_i= 0.005,beta_min=1.,beta_init=150.) -> None:
         super().__init__()
         self.total_steps=total_steps
         self.C = C
+        self.K=K
+        self.step_value= C/(total_steps//K)
         
         self.alpha=0.95
         self.K_p = K_p
@@ -547,16 +551,16 @@ class DynamicVAE(Regularizer):
         
     
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        t = min(1,model.global_step/self.total_steps)
+        target = self.step_value * (min(model.global_step,self.total_steps)//self.K)
         kl_loss = kl.sum()
         y_t = self.alpha*kl_loss.item()+(1-self.alpha)*self.y_t1
-        target = self.C*t
-        e_t = target - y_t
+        
+        e_t = y_t - target
         dP_t = self.K_p*(self.step_fn(e_t)-self.step_fn(self.e_t1))
+        dI_t = self.K_i*e_t 
         if self.beta1 < self.beta_min:
             dI_t=0
-        else:
-            dI_t = self.K_i*e_t 
+        
         dBeta = dP_t + dI_t
         beta = max(dBeta + self.beta1, self.beta_min)
         
@@ -565,4 +569,5 @@ class DynamicVAE(Regularizer):
         self.y_t1 = y_t
         model.summary['beta'] = beta
         model.summary['e_t'] = e_t
+        model.summary['target'] = target
         return kl_loss * beta
