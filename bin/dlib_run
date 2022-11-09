@@ -9,6 +9,7 @@ import sys
 from disentanglement_lib.evaluation.metrics.mig import compute_mig
 from disentanglement_lib.methods.unsupervised.train import DataModule , PLModel, Iterate
 from disentanglement_lib.methods.unsupervised import callbacks
+from disentanglement_lib.methods.unsupervised import model
 from disentanglement_lib.data.named_data import get_named_ground_truth_data
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -24,12 +25,13 @@ from disentanglement_lib.utils.results import save_gin
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_steps',type=int,default=1000)
+    parser.add_argument('--seed',type=int,default=99)
     parser.add_argument('--output_dir',type=str,default='outputs')
     parser.add_argument('-c', '--configs', default=["model.gin"],nargs='+')
     parser.add_argument('--wandb', action='store_true', default=False)
     
     args, unknown = parser.parse_known_args()
-        
+    pl.seed_everything(args.seed)
     for gin_file in args.configs:
         print('load gin config', gin_file)
         gin.parse_config_file(gin_file)
@@ -42,42 +44,43 @@ if __name__ == '__main__':
     print(gin.config_str())
     
     CALLBACK_STEPS = args.max_steps//5
-    pl_model = PLModel()
+    pl_model = PLModel(seed=args.seed)
     dataset = get_named_ground_truth_data()    
-    dl = torch.utils.data.DataLoader(dataset,256,num_workers=4,pin_memory=True, shuffle=True )
+    dl = torch.utils.data.DataLoader(dataset,64,num_workers=4,pin_memory=True, shuffle=True )
     
     
     callbacks_fn = [
-        # callbacks.Traversal(CALLBACK_STEPS),
-        # callbacks.ShowSamples(CALLBACK_STEPS,dataset),
-        ModelCheckpoint(every_n_train_steps=CALLBACK_STEPS), # save last
+        callbacks.Traversal(CALLBACK_STEPS),
+        callbacks.ShowSamples(CALLBACK_STEPS,dataset),
+        ModelCheckpoint(args.output_dir,'checkpoint'),
     ]
     if dataset.supervision: 
         callbacks_fn.append(callbacks.ComputeMetric(CALLBACK_STEPS,compute_mig,dataset))
 
+    os.makedirs(args.output_dir,exist_ok=True)
+    # save all config
+    save_gin(os.path.join(args.output_dir, "model.gin"))
+    
+    name = os.path.basename(args.output_dir)
     if not args.wandb:
-        logger = CSVLogger(args.output_dir,name='run')
+        logger = CSVLogger(args.output_dir,name=name)
         
     else:
-        logger = WandbLogger(save_dir=args.output_dir,sync_step=False)
+        logger = WandbLogger(save_dir=args.output_dir,name=name,resume=True)
 
 
+    ckpt_path = os.path.join(args.output_dir,'checkpoint.ckpt')
     trainer = pl.Trainer(
         logger,
+        default_root_dir=args.output_dir,
+        resume_from_checkpoint=ckpt_path if os.path.exists(ckpt_path) else None,
         accelerator='gpu', devices=1,
         max_steps=args.max_steps,
         callbacks=callbacks_fn,
         # enable_progress_bar=False,
-        # checkpoint_callback=False,
-        weights_summary=None,
+        # weights_summary=None,
     )
     trainer.fit(pl_model, dl)
 
-    # save all config
-    for cb in trainer.callbacks:
-        if isinstance(cb,ModelCheckpoint): 
-            save_path = os.path.join(cb.dirpath,'../')
-            save_gin(os.path.join(save_path, "model.gin"))
-            print(save_path)
     
     

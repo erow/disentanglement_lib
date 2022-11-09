@@ -62,9 +62,9 @@ from disentanglement_lib.evaluation import evaluate
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--output_dir", help="Directory to save results.")         
-parser.add_argument("--model_config",type=str)                          
+parser.add_argument("--model_config",type=str,default='model.gin')                          
 parser.add_argument("--checkpoint", help="Patch of the checkpoint.")                              
-parser.add_argument("-c", "--evaluation_config", default=None, nargs='+',
+parser.add_argument("-c", "--evaluation_config",
                           help="List of paths to the config files. One config file refers to one metric.")
 parser.add_argument("--overwrite", default=False, action='store_true')
 

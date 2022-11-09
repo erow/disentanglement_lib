@@ -80,7 +80,6 @@ class PLModel(pl.LightningModule):
                  seed = 99,
                  **kwargs):
         super().__init__(**kwargs)
-        pl.seed_everything(seed)
         self.save_hyperparameters(config_dict())
         
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
