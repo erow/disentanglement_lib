@@ -580,7 +580,7 @@ class Projection(nn.Module):
 
     def forward(self, mu, logvar):
         z_mean1 = mu * self.W1.exp()
-        z_logvar1 = logvar * self.W2.exp()
+        z_logvar1 = logvar + self.W2
         return z_mean1, z_logvar1
     
     def extra_repr(self):
