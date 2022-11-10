@@ -54,7 +54,7 @@ setup(
         'wandb',
         'opencv-python',
         'absl-py',
-        'pytorch_lightning',
+        'pytorch_lightning==1.7.0',
         'h5py'
     ],
     extras_require={

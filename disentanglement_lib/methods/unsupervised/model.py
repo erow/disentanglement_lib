@@ -183,7 +183,7 @@ class FactorVAE(Regularizer):
         super().__init__()
         self.gamma = gamma
         self.discriminator = architectures.make_discriminator(num_latent)
-        self.opt = torch.optim.Adam(self.discriminator.parameters())
+        self.opt = torch.optim.Adam(self.discriminator.parameters(),5e-54, betas=(0.5,0.9))
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         features, _ = data_batch
