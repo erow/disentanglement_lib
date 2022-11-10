@@ -88,9 +88,9 @@ class PLModel(pl.LightningModule):
         self.input_shape = input_shape
         self.summary = {}
         if isinstance(regularizers,list):
-            self.regularizers = nn.Sequential(*regularizers)
+            self.regularizers = regularizers
         else:
-            self.regularizers = nn.Sequential(regularizers)
+            self.regularizers = [regularizers]
 
  
     def training_step(self, batch, batch_idx):

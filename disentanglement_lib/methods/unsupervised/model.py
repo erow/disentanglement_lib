@@ -166,9 +166,10 @@ class AnnealedVAE(Regularizer):
         kl_loss = kl.sum()
         return self.gamma * torch.abs(kl_loss - c)
 
+torch.autograd.set_detect_anomaly(True)
 
 @gin.configurable("factor_vae")
-class FactorVAE(Regularizer):
+class FactorVAE():
     """FactorVAE model."""
 
     def __init__(self, num_latent=gin.REQUIRED,gamma=gin.REQUIRED):
@@ -182,16 +183,18 @@ class FactorVAE(Regularizer):
         """
         super().__init__()
         self.gamma = gamma
-        self.discriminator = architectures.make_discriminator(num_latent)
-        self.opt = torch.optim.Adam(self.discriminator.parameters(),5e-54, betas=(0.5,0.9))
+        self.discriminator = architectures.make_discriminator(num_latent).cuda()
+        self.opt = torch.optim.Adam(self.discriminator.parameters(),5e-5, betas=(0.5,0.9))
 
+    def __call__(self,*args,**kwargs):
+        return self.forward(*args,**kwargs)
+    
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        features, _ = data_batch
-        data_shape = features.shape[1:]
-
+        kl_loss = kl.sum()
+        
         z_shuffle = shuffle_codes(z_sampled)
 
-        logits_z, probs_z = self.discriminator(z_sampled.data)
+        _, probs_z = self.discriminator(z_sampled.data)
         _, probs_z_shuffle = self.discriminator(z_shuffle.data)
 
         discr_loss = -torch.add(
@@ -200,16 +203,16 @@ class FactorVAE(Regularizer):
         self.opt.zero_grad()
         discr_loss.backward()
         self.opt.step()
-
-        logits_z, probs_z = self.discriminator(z_sampled)
-        _, probs_z_shuffle = self.discriminator(z_shuffle)
+        
+        logits_z, _ = self.discriminator(z_sampled)
 
         # tc = E[log(p_real)-log(p_fake)] = E[logit_real - logit_fake]
         tc_loss_per_sample = logits_z[:, 0] - logits_z[:, 1]
         tc_loss = torch.mean(tc_loss_per_sample, dim=0)
-
-        model.summary['tc_loss'] = tc_loss.item()
-        return self.gamma * tc_loss
+        
+        model.summary['tc_loss'] = tc_loss
+        
+        return kl_loss + self.gamma*tc_loss
     def __repr__(self):
         return "FactorVAE("+str(dict(gamma=self.gamma))+")"
 
