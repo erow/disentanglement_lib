@@ -17,6 +17,8 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+
 from disentanglement_lib.data.ground_truth import cars3d
 from disentanglement_lib.data.ground_truth import dsprites
 from disentanglement_lib.data.ground_truth import dummy_data
@@ -25,6 +27,7 @@ from disentanglement_lib.data.ground_truth import norb
 from disentanglement_lib.data.ground_truth import shapes3d
 from disentanglement_lib.data.ground_truth import translation
 from disentanglement_lib.data.ground_truth import robot_finger
+from disentanglement_lib.data.unsupervised import celeba
 import gin
 
 from disentanglement_lib.data.ground_truth.correlation import Correlation
@@ -79,6 +82,8 @@ def get_named_ground_truth_data(name="auto"):
         return Correlation()
     elif name == "finger_real":
         return robot_finger.Finger('finger_real')
+    elif name == 'celeba':
+        return celeba.CelebA()        
     else:
         if "image_folder" in name:
             path = name.split(':')[1]
