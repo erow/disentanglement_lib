@@ -151,7 +151,7 @@ class Finger(ground_truth_data.GroundTruthData):
 
     @property
     def observation_shape(self):
-        return [128, 128, 3]
+        return [3, 128, 128]
 
     def sample_factors(self, num, random_state):
         """Sample a batch of factors Y."""
@@ -159,15 +159,15 @@ class Finger(ground_truth_data.GroundTruthData):
 
     def sample_observations_from_factors(self, factors, _random_state):
         indices = np.nonzero(pairwise_distances(factors, self.labels) == 0)[1]
-        return np.stack([self.read_image(index) for index in indices])
+        return np.stack([self.read_image(index) for index in indices]).transpose(0,2,3,1)
 
     def read_image(self, item):
         if self.mode == "finger_real":
-            return self.images[item]
+            return self.images[item].transpose(2,0,1)
         else:
             file_fp = self.tarfile.extractfile(self.files[item])
             pic = Image.open(file_fp)
-            return np.asarray(pic, dtype=np.float32) / 255
+            return np.asarray(pic, dtype=np.float32).transpose(2,0,1) / 255
 
     def __getitem__(self, item):
         factor = self.labels[item]

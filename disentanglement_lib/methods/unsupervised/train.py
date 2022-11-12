@@ -80,7 +80,6 @@ class PLModel(pl.LightningModule):
                  seed = 99,
                  **kwargs):
         super().__init__(**kwargs)
-        pl.seed_everything(seed)
         self.save_hyperparameters(config_dict())
         
         self.encode = encoder_fn(input_shape=input_shape, num_latent=num_latent)
@@ -89,9 +88,9 @@ class PLModel(pl.LightningModule):
         self.input_shape = input_shape
         self.summary = {}
         if isinstance(regularizers,list):
-            self.regularizers = nn.Sequential(*regularizers)
+            self.regularizers = regularizers
         else:
-            self.regularizers = nn.Sequential(regularizers)
+            self.regularizers = [regularizers]
 
     def forward(self,x):
         mu,logvar = self.encode(x)

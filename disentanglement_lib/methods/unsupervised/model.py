@@ -166,9 +166,10 @@ class AnnealedVAE(Regularizer):
         kl_loss = kl.sum()
         return self.gamma * torch.abs(kl_loss - c)
 
+torch.autograd.set_detect_anomaly(True)
 
 @gin.configurable("factor_vae")
-class FactorVAE(Regularizer):
+class FactorVAE():
     """FactorVAE model."""
 
     def __init__(self, num_latent=gin.REQUIRED,gamma=gin.REQUIRED):
@@ -182,16 +183,18 @@ class FactorVAE(Regularizer):
         """
         super().__init__()
         self.gamma = gamma
-        self.discriminator = architectures.make_discriminator(num_latent)
-        self.opt = torch.optim.Adam(self.discriminator.parameters())
+        self.discriminator = architectures.make_discriminator(num_latent).cuda()
+        self.opt = torch.optim.Adam(self.discriminator.parameters(),5e-5, betas=(0.5,0.9))
 
+    def __call__(self,*args,**kwargs):
+        return self.forward(*args,**kwargs)
+    
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        features, _ = data_batch
-        data_shape = features.shape[1:]
-
+        kl_loss = kl.sum()
+        
         z_shuffle = shuffle_codes(z_sampled)
 
-        logits_z, probs_z = self.discriminator(z_sampled.data)
+        _, probs_z = self.discriminator(z_sampled.data)
         _, probs_z_shuffle = self.discriminator(z_shuffle.data)
 
         discr_loss = -torch.add(
@@ -200,15 +203,18 @@ class FactorVAE(Regularizer):
         self.opt.zero_grad()
         discr_loss.backward()
         self.opt.step()
-
-        logits_z, probs_z = self.discriminator(z_sampled)
-        _, probs_z_shuffle = self.discriminator(z_shuffle)
+        
+        logits_z, _ = self.discriminator(z_sampled)
 
         # tc = E[log(p_real)-log(p_fake)] = E[logit_real - logit_fake]
         tc_loss_per_sample = logits_z[:, 0] - logits_z[:, 1]
         tc_loss = torch.mean(tc_loss_per_sample, dim=0)
-
-        return self.gamma * tc_loss
+        
+        model.summary['tc_loss'] = tc_loss
+        
+        return kl_loss + self.gamma*tc_loss
+    def __repr__(self):
+        return "FactorVAE("+str(dict(gamma=self.gamma))+")"
 
 
 def compute_covariance_z_mean(z_mean):
@@ -371,7 +377,7 @@ def total_correlation(z, z_mean, z_logvar):
 class BetaTCVAE(Regularizer):
     """BetaTCVAE model."""
 
-    def __init__(self, beta=gin.REQUIRED, **kwargs):
+    def __init__(self, beta=gin.REQUIRED, alpha=1.0):
         """Creates a beta-TC-VAE model.
 
         Based on Equation 4 with alpha = gamma = 1 of "Isolating Sources of
@@ -384,11 +390,13 @@ class BetaTCVAE(Regularizer):
         """
         super().__init__()
         self.beta = beta
+        self.alpha = alpha
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
-        kl_loss = kl.sum()
-        tc = (self.beta - 1.) * total_correlation(z_sampled, z_mean, z_logvar)
-        return tc + kl_loss
+        kl_loss = kl.sum() 
+        tc =  total_correlation(z_sampled, z_mean, z_logvar)
+        model.summary['tc'] = tc.item()
+        return (self.beta - self.alpha) * tc + kl_loss * self.alpha
 
 
 @gin.configurable("cascade_vae_c")
@@ -398,8 +406,7 @@ class CascadeVAEC(Regularizer):
     def __init__(self,
                  stage_steps=gin.REQUIRED,
                  beta_min=1,
-                 beta_max=10,
-                 td=1e5):
+                 beta_max=10):
         """Creates a CascadeVAE-C model.
 
         Refers https://github.com/snu-mllab/DisentanglementICML19
@@ -411,7 +418,6 @@ class CascadeVAEC(Regularizer):
         super().__init__()
         self.beta_min = beta_min
         self.beta_max = beta_max
-        self.td = td
         self.stage_steps = stage_steps
 
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
@@ -419,6 +425,7 @@ class CascadeVAEC(Regularizer):
         self.stage = min(global_step // self.stage_steps, model.num_latent-1)
         weight = torch.ones_like(kl) * self.beta_min
         weight[self.stage + 1:] = self.beta_max
+        model.summary['stage'] = self.stage
         kl_loss = (weight * kl).sum()
         return kl_loss
 

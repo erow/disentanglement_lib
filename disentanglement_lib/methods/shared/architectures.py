@@ -580,9 +580,115 @@ class Projection(nn.Module):
 
     def forward(self, mu, logvar):
         z_mean1 = mu * self.W1.exp()
-        z_logvar1 = logvar * self.W2.exp()
+        z_logvar1 = logvar + self.W2
         return z_mean1, z_logvar1
     
     def extra_repr(self):
         return "W1: " + str((self.W1.exp()).data.cpu().numpy().round(2))+",\n"+\
         "W2: " + str(self.W2.exp().data.cpu().numpy().round(2))
+    
+    
+  
+
+@gin.configurable("residual_encoder")
+class ResidualEncoder(nn.Module):
+    """ Reference:
+    @inproceedings{
+        dittadi2021transfer,
+        title={On the Transfer of Disentangled Representations in Realistic Settings},
+        author={Andrea Dittadi and Frederik Tr{\"a}uble and Francesco Locatello and Manuel W{\"u}thrich and Vaibhav Agrawal and Ole Winther and Stefan Bauer and Bernhard Sch{\"o}lkopf},
+        booktitle={International Conference on Learning Representations},
+        year={2021},
+    }
+    """
+    def __init__(self,input_shape, num_latent) -> None:
+        super().__init__()
+        K,H,W = input_shape
+        assert H==128
+        self.conv1 = nn.Conv2d(K,64,5,stride=2,padding=2)
+        self.ac1 = nn.LeakyReLU(0.02)
+        
+        self.conv2=nn.Sequential(
+                BasicBlock(64,64),
+                BasicBlock(64,64),
+                nn.Conv2d(64,128,1),
+                nn.AvgPool2d(2),
+                BasicBlock(128,128),
+                BasicBlock(128,128),
+                nn.AvgPool2d(2),
+                BasicBlock(128,128),
+                BasicBlock(128,128),
+                nn.Conv2d(128,256,1),
+                nn.AvgPool2d(2),
+                BasicBlock(256,256),
+                BasicBlock(256,256),
+                nn.AvgPool2d(2),
+                BasicBlock(256,256),
+                BasicBlock(256,256),
+        )
+        self.fc = nn.Sequential(
+            nn.Flatten(),
+            nn.LeakyReLU(0.02),
+            nn.Linear(4096,512),
+            nn.LeakyReLU(0.02),
+            nn.LayerNorm(512),
+            nn.Linear(512,num_latent*2)
+        )
+    
+    def forward(self,x):
+        x = self.conv1(x)
+        x = self.ac1(x)
+        x = self.conv2(x)
+        x = self.fc(x)
+        return torch.chunk(x,2,dim=1)
+
+@gin.configurable("residual_decoder")
+class ResidualDecoder(nn.Module):
+    """ Reference:
+    @inproceedings{
+        dittadi2021transfer,
+        title={On the Transfer of Disentangled Representations in Realistic Settings},
+        author={Andrea Dittadi and Frederik Tr{\"a}uble and Francesco Locatello and Manuel W{\"u}thrich and Vaibhav Agrawal and Ole Winther and Stefan Bauer and Bernhard Sch{\"o}lkopf},
+        booktitle={International Conference on Learning Representations},
+        year={2021},
+    }
+    """
+    def __init__(self, num_latent, output_shape) -> None:
+        super().__init__()
+        K,H,W = output_shape
+        assert H==128
+        self.conv1 = nn.Conv2d(64,K,5,padding=2)
+        self.ac1 = nn.LeakyReLU(0.02)
+        
+        self.conv2=nn.Sequential(
+                BasicBlock(256,256),
+                BasicBlock(256,256),
+                nn.UpsamplingBilinear2d(8),
+                BasicBlock(256,256),
+                BasicBlock(256,256),
+                nn.Conv2d(256,128,1),
+                 nn.UpsamplingBilinear2d(16),
+                BasicBlock(128,128),
+                BasicBlock(128,128),
+                 nn.UpsamplingBilinear2d(32),
+                BasicBlock(128,128),
+                BasicBlock(128,128),
+                nn.Conv2d(128,64,1),
+                 nn.UpsamplingBilinear2d(64),
+                BasicBlock(64,64),
+                BasicBlock(64,64),
+                 nn.UpsamplingBilinear2d(128),
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(num_latent,512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512,4096),
+            View([-1, 256,4,4]),
+        )
+    
+    def forward(self,x):
+        x = self.fc(x)
+        x = self.conv2(x)
+        x = self.ac1(x)
+        x = self.conv1(x)
+        return x

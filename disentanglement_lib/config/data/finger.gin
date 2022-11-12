@@ -1,0 +1,6 @@
+dataset.name = 'finger_real'
+model.input_shape = [3, 128, 128]
+model.num_latent = 100
+model.encoder_fn = @residual_encoder
+model.decoder_fn = @residual_decoder
+reconstruction_loss.loss_fn=@l2_loss
