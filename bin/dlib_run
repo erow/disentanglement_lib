@@ -50,7 +50,7 @@ if __name__ == '__main__':
     
     
     callbacks_fn = [
-        callbacks.Traversal(CALLBACK_STEPS),
+        # callbacks.Traversal(CALLBACK_STEPS),
         callbacks.ShowSamples(CALLBACK_STEPS,dataset),
         ModelCheckpoint(args.output_dir,'checkpoint'),
     ]

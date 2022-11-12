@@ -24,6 +24,7 @@ from disentanglement_lib.data.ground_truth import mpi3d
 from disentanglement_lib.data.ground_truth import norb
 from disentanglement_lib.data.ground_truth import shapes3d
 from disentanglement_lib.data.ground_truth import translation
+from disentanglement_lib.data.ground_truth import robot_finger
 import gin
 
 from disentanglement_lib.data.ground_truth.correlation import Correlation
@@ -76,6 +77,8 @@ def get_named_ground_truth_data(name="auto"):
         return Chairs()
     elif name == 'correlation':
         return Correlation()
+    elif name == "finger_real":
+        return robot_finger.Finger('finger_real')
     else:
         if "image_folder" in name:
             path = name.split(':')[1]

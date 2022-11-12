@@ -9,17 +9,21 @@ logging.getLogger().addHandler(logging.StreamHandler())
 os.environ['WANDB_ENTITY']='dlib'
 os.environ['WANDB_TAGS']='Decrement'
 
-training_steps = int(3e5)
+training_steps = int(10e5)
 program = "python exps/decrement.py"
 
-seeds = h.sweep("seed",h.categorical(list(range(5))))
+seeds = h.sweep("seed",h.categorical(list(range(3))))
 
-datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin","disentanglement_lib/config/data/shapes3d.gin"])
+datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin"])
 
 model_setting1 = h.sweep("decrement.betas", h.discrete(["[1,10,40]"]))
-model_setting2 = h.sweep("decrement.scale", h.discrete([1.0]))
+model_setting2 = [{
+    "decrement.scale":1.0,
+    "model.num_latent":1000,
+}]
 
-all_experiemts = h.product([seeds, datasets, model_setting1,model_setting2[:1]])
+
+all_experiemts = h.product([seeds, datasets, model_setting1,model_setting2,])
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--start',default=0,type=int)
@@ -32,7 +36,7 @@ experiments = all_experiemts[program_args.start:program_args.end]
 for i,args in enumerate(experiments):
     
     args = " ".join(map(lambda x:f"--{x[0]}={x[1]}",args.items()))
-    cmd = f"{program} {args} --max_steps {training_steps} --output_dir=outputs/decrement/{i}" + program_args.extra_args
+    cmd = f"{program} {args} --max_steps {training_steps} --output_dir=outputs/decrement/h{i}" + program_args.extra_args
 
     if program_args.print:
         print(f"[{__file__}:{i+program_args.start}-{program_args.end}] {cmd} ")

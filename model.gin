@@ -1,30 +1,5 @@
-# Parameters for conv_encoder:
-# ==============================================================================
-conv_encoder.base_channel = 32
-
-# Parameters for dataset:
-# ==============================================================================
-dataset.name = 'dsprites_full'
-
-# Parameters for deconv_decoder:
-# ==============================================================================
-# None.
-
-# Parameters for discriminator:
-# ==============================================================================
-# None.
-
-# Parameters for factor_vae:
-# ==============================================================================
-factor_vae.gamma = 10
-factor_vae.num_latent = 10
-
-# Parameters for fc_discriminator:
-# ==============================================================================
-# None.
-
-# Parameters for model:
-# ==============================================================================
-model.input_shape = [1, 64, 64]
-model.num_latent = 10
-model.regularizers = [@factor_vae()]
+dataset.name = 'finger_real'
+model.input_shape = [3, 128, 128]
+model.num_latent = 100
+model.encoder_fn = @residual_encoder
+model.decoder_gn = @residual_decoder
