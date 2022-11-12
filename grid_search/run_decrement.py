@@ -7,19 +7,20 @@ logging.basicConfig(filename='log.txt',filemode='a',level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler())
 
 os.environ['WANDB_ENTITY']='dlib'
-os.environ['WANDB_TAGS']='stability'
+os.environ['WANDB_PROJECT']='Decrement'
+os.environ['WANDB_TAGS']='main'
 
-training_steps = int(10e5)
+training_steps = int(2e5)
 program = "python exps/decrement.py"
 
-seeds = h.sweep("model.seed",h.categorical(list(range(5))))
+seeds = h.sweep("model.seed",h.categorical(list(range(3))))
 
-datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin","disentanglement_lib/config/data/shapes3d.gin"])
+datasets = h.sweep("configs", ["disentanglement_lib/config/data/dsprites.gin"])
 
-model_setting1 = h.sweep("decrement.betas", h.discrete(["[1.0,10.0,20,30,40,50,60,70,80]"]))
-model_setting2 = h.sweep("decrement.scale", h.discrete([1.0]))
+model_setting1 = h.sweep("decrement.betas", h.discrete(["[1,12,30,70]"]))
+model_setting2 = h.sweep("decrement.scale", h.discrete([1.0,0.5,1.5]))
 
-all_experiemts = h.product([seeds, datasets, model_setting1,model_setting2[:1]])
+all_experiemts = h.product([seeds, datasets, model_setting1,model_setting2])
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--start',default=0,type=int)

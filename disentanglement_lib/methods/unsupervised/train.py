@@ -93,6 +93,9 @@ class PLModel(pl.LightningModule):
         else:
             self.regularizers = nn.Sequential(regularizers)
 
+    def forward(self,x):
+        mu,logvar = self.encode(x)
+        return self.decode(mu)
  
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -151,7 +154,7 @@ class PLModel(pl.LightningModule):
         def _decoder(latent_vectors,*args):
             with torch.no_grad():
                 z = torch.FloatTensor(latent_vectors).to(device)
-                imgs = self.decode(z,*args).cpu().sigmoid().numpy()
+                imgs = self.decode(z,*args).cpu().numpy()
                 return imgs.transpose((0, 2, 3, 1))
 
         def _encoder(obs,*args):

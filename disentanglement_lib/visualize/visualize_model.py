@@ -24,9 +24,9 @@ import shutil
 
 import torch
 
-from disentanglement_lib.data import named_data
 from disentanglement_lib.utils import results
-from disentanglement_lib.utils.hub import convert_model
+from disentanglement_lib.utils.hub import get_model, retrive_model
+from disentanglement_lib.data.named_data import get_named_ground_truth_data
 from disentanglement_lib.visualize import visualize_util
 from disentanglement_lib.visualize.visualize_irs import vis_all_interventional_effects
 import numpy as np
@@ -77,17 +77,21 @@ def visualize(model_dir,
             shutil.rmtree(output_dir)
         else:
             raise ValueError("Directory already exists and overwrite is False.")
-
     # Automatically set the proper data set if necessary. We replace the active
     # gin config as this will lead to a valid gin config file where the data set
     # is present.
     # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "train.gin")
-    gin.parse_config_file(gin_config_file, True)
-    gin_dict = results.gin_dict(gin_config_file)
+    from exps.decrement import Decrement
+    model = retrive_model(model_dir,model_fn=Decrement)
+    # model = retrive_model(model_dir)
+    num_latent = model.num_latent
 
     # Automatically infer the activation function from gin config.
-    activation_str = gin_dict["reconstruction_loss.activation"] if "reconstruction_loss.activation" in gin_dict else None
+    try:
+        activation_str = gin.query_parameter["reconstruction_loss.activation"]
+    except:
+        activation_str = "'logits'"
+
     if activation_str == "'logits'" or activation_str == None:
         activation = sigmoid
     elif activation_str == "'tanh'":
@@ -96,16 +100,10 @@ def visualize(model_dir,
         raise ValueError(
             "Activation function  could not be infered from gin config.")
 
-    train = Train()
-    dataset = train.data
-    model = train.ae
-    model.load_state_dict(torch.load(os.path.join(model_dir, "model.pt")))
-    model.eval()
-    num_latent = model.num_latent
 
     # Save samples.
-    _encoder, _decoder = convert_model(model)
-
+    _encoder, _decoder = model.convert()
+    dataset = get_named_ground_truth_data()
     visualize_reconstructions(output_dir, dataset, model, activation=activation)
     visualize_samples(output_dir, num_latent, _decoder, activation=activation)
     visualize_traversal(output_dir, dataset, _encoder, _decoder, activation=activation)
@@ -130,6 +128,7 @@ def visualize_reconstructions(output_dir, dataset, model,
     paired_pics = np.concatenate((real_pics, pics), axis=0)
     paired_pics = [paired_pics[i, :, :, :] for i in range(paired_pics.shape[0])]
     results_dir = os.path.join(output_dir, "reconstructions")
+    print(results_dir)
     if not os.path.isdir(results_dir):
         pathlib.Path(results_dir).mkdir(parents=True)
     visualize_util.grid_save_images(

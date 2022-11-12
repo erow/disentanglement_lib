@@ -19,22 +19,25 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from absl import app
-from absl import flags
+import argparse
+import glob
+import os
 from disentanglement_lib.visualize import visualize_model
-
-FLAGS = flags.FLAGS
-flags.DEFINE_string("model_dir", 'model',
-                    "Directory to take the trained model from.")
-flags.DEFINE_string("output_dir", 'visualization',
-                    "Directory to save the visualizations in.")
-flags.DEFINE_boolean("overwrite", False,
-                     "Whether to overwrite output directory.")
-
-
-def main(unused_argv):
-  visualize_model.visualize(FLAGS.model_dir, FLAGS.output_dir, FLAGS.overwrite)
-
+import tqdm
 
 if __name__ == "__main__":
-  app.run(main)
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--model_pattern','-m', type=str, help="The parttern of model.gin. e.g. **/model.gin",default="**/model.gin")
+  parser.add_argument('--output_dir',type=str,default="model_viz", help="The direction of saving results")
+  parser.add_argument('--overwrite', default=False, action='store_true')
+
+  args = parser.parse_args()
+  for model_cfg in tqdm.tqdm(glob.glob(args.model_pattern,recursive=True)):
+    model_dir = os.path.dirname(model_cfg)
+    output_dir = os.path.join(model_dir,args.output_dir)
+    print(output_dir)
+    try:
+      visualize_model.visualize(model_dir,output_dir,args.overwrite)
+    except Exception as e:
+      print(e)
+  

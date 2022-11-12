@@ -1,8 +1,53 @@
+# Reference: https://github.com/clarken92/DisentanglementMetrics
 import numpy as np
 import cupy as cp
 from tqdm import tqdm
 
 from disentanglement_lib.utils.general import normal_density_cupy
+
+from disentanglement_lib.evaluation.metrics import RMIG
+from disentanglement_lib import utils
+import torch, gin
+
+@gin.configurable(
+    "rmig",
+    denylist=["ground_truth_data", "encoder", "random_state",
+               "artifact_dir"])
+def compute_rmig(ground_truth_data,
+                encoder,
+                random_state,
+                artifact_dir=None,
+                num_train=10000,
+                batch_size=16):
+    """Computes the mutual information gap.
+
+    Args:
+      ground_truth_data: GroundTruthData to be sampled from.
+      representation_function: Function that takes observations as input and
+        outputs a dim_representation sized representation for each observation.
+      random_state: Numpy random state used for randomness.
+      artifact_dir: Optional path to directory where artifacts can be saved.
+      num_train: Number of points used for training.
+      batch_size: Batch size for sampling.
+
+    Returns:
+      Dict with average mutual information gap.
+    """
+    del artifact_dir
+    z_mean, z_stddev, y_label = [],[],[]
+    dl = torch.utils.data.DataLoader(ground_truth_data, 256,num_workers=4)
+    for x,y in tqdm(dl):
+        with torch.no_grad():
+            mu,logvar = encoder(x.cuda())
+        std = (logvar/2).exp()
+        z_mean.append(mu)
+        z_stddev.append(std)
+        y_label.append(y)
+
+    z_mean, z_stddev, y_label = (torch.cat(i).cpu().numpy() for i in (z_mean, z_stddev, y_label))
+    
+    return estimate_JEMMIG_cupy(z_mean, z_stddev, y_label,
+    rs=random_state, batch_size=batch_size, num_samples=num_train)
 
 
 def robust_prod_cupy(x, axis, eps=1e-8):
@@ -396,7 +441,7 @@ def estimate_SEPIN_cupy(z_mean, z_stddev, x_weights=None,
 
 
 def estimate_JEMMIG_cupy(z_mean, z_stddev, y, x_weights=None, num_samples=10000,
-                         seed=None, batch_size=10, eps=1e-8, gpu=0):
+                         rs=None, batch_size=10, eps=1e-8, gpu=0):
     """
     We simply need to care about log q(zi,yk) - log q(zi) - log q(yk) =
         log sum_x^(n) (q(zi | x^(n)) q(yk | x^(n)))
@@ -431,7 +476,8 @@ def estimate_JEMMIG_cupy(z_mean, z_stddev, y, x_weights=None, num_samples=10000,
     assert 1.0 - 1e-5 <= np.sum(x_weights) <= 1.0 + 1e-5, "'weights' should sum to 1. Found {:.5f}!".format(
         np.sum(x_weights))
 
-    rs = np.random.RandomState(seed)
+    if rs is None:
+        rs = np.random.RandomState()
     rand_ids = rs.choice(num_x, size=num_samples, replace=True, p=x_weights)
 
     # (S, z_dim)
