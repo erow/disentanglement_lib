@@ -18,10 +18,10 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision.utils import make_grid
 
 class EarlyStop(Callback):
-    def on_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch_output, batch, batch_idx) -> None:
         if pl_module.summary['reconstruction_loss']<1:
             trainer.should_stop=True
-        return super().on_batch_end(trainer, pl_module)
+            
         
 class Evaluation(Callback):
     def __init__(self, every_n_step, prefix=""):
@@ -29,7 +29,7 @@ class Evaluation(Callback):
         self.log={}
         self.prefix = prefix
 
-    def on_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
+    def on_train_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule,batch_output, batch, batch_idx):
         if trainer.global_rank == 0 and (trainer.global_step+1) % self.every_n_step == 0:
             logger = trainer.logger
             log = self.compute(pl_module, trainer.train_dataloader)

@@ -56,7 +56,6 @@ class Regularizer(nn.Module):
     def forward(self, data_batch, model, kl, z_mean, z_logvar, z_sampled):
         raise NotImplementedError
 
-
 def shuffle_codes(z):
     """Shuffles latent variables across the batch.
 
@@ -474,7 +473,7 @@ class DEFT(Regularizer):
 
 from math import exp
 
-@gin.configurable('control')
+@gin.configurable('control_vae')
 class PIDControl(Regularizer):
     """docstring for ClassName"""
     def __init__(self,C=gin.REQUIRED,
@@ -534,7 +533,7 @@ class PIDControl(Regularizer):
     
 def step_fn(x):
     return  x if x<0 else 0
-@gin.configurable('dynamic')
+@gin.configurable('dynamic_vae')
 class DynamicVAE(Regularizer):
     def __init__(self,
         K=gin.REQUIRED,total_steps=gin.REQUIRED,

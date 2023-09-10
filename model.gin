@@ -1,5 +1,2 @@
-dataset.name = 'finger_real'
-model.input_shape = [3, 128, 128]
-model.num_latent = 100
-model.encoder_fn = @residual_encoder
-model.decoder_gn = @residual_decoder
+model.regularizers = [@vae()]
+vae.beta = 1

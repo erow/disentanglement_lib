@@ -1,3 +1,4 @@
 dataset.name="dsprites_full"
 model.input_shape=[1,64,64]
+model.num_latent=10
 reconstruction_loss.loss_fn=@bernoulli_loss

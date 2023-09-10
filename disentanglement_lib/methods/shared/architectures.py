@@ -133,6 +133,114 @@ class fc_encoder(nn.Module):
         return means, log_var
 
 
+@gin.configurable
+class ConvEncoder(nn.Module):
+    """Convolutional encoder 
+    
+    Args:
+      input_tensor: Input tensor of shape (batch_size, 64, 64, num_channels) to
+        build encoder on.
+      num_latent: Number of latent variables to output.
+
+    Returns:
+      z: Output tensor of shape (batch_size, num_latent) with latent variable
+        means.
+    """
+
+    def __init__(self, input_shape, num_latent, base_channel=32):
+        super().__init__()
+        self.num_latent = num_latent
+        self.input_shape = input_shape
+        # 3,32, 64, 512
+        modules = [
+            nn.Conv2d(input_shape[0], base_channel, (4, 4), stride=2, padding=1), 
+            # nn.BatchNorm2d(base_channel), 
+            nn.ReLU(True),  # 32x32
+            nn.Conv2d(base_channel, base_channel, (4, 4), stride=2, padding=1), 
+            # nn.BatchNorm2d(base_channel), 
+            nn.ReLU(True),    # 16
+            nn.Conv2d(base_channel, base_channel * 2, (4, 4), stride=2, padding=1), 
+            # nn.BatchNorm2d(base_channel*2), 
+            nn.ReLU(True),# 8
+            nn.Conv2d(base_channel * 2, base_channel * 2, (4, 4), stride=2, padding=1), 
+            # nn.BatchNorm2d(base_channel*2), 
+            nn.ReLU(True),  # 4
+            nn.Conv2d(base_channel * 2, base_channel * 16, (4, 4)), 
+            # nn.BatchNorm2d(base_channel*16), 
+            nn.ReLU(True),         # 1x1
+            nn.AdaptiveAvgPool2d((1,1))
+        ]
+        if input_shape[1] < 64:
+            modules = modules[:2] + modules[4:]
+        self.net = nn.Sequential(*modules)
+        self.head = nn.Linear(1 * 1 * base_channel * 16, num_latent)
+        self.K = num_latent
+
+    def forward(self, input_tensor):
+        features = self.net(input_tensor)
+        features = features.flatten(1)
+        z = self.head(features)
+        return z
+
+@gin.configurable
+class ConvDecoder(nn.Module):
+    def __init__(self, num_latent,output_shape=[3,64,64], output_act=nn.Tanh):
+        super(ConvDecoder, self).__init__()
+        self.K = num_latent
+        self.output_shape = output_shape        
+        
+        def _pad(x):
+            return max(0,x-64)//16
+        self.conv1 = nn.ConvTranspose2d(num_latent, 512, (1+_pad(output_shape[1]),1+_pad(output_shape[2])), 1, 0)  # 1 x 1
+        self.bn1 = nn.BatchNorm2d(512)
+        self.conv2 = nn.ConvTranspose2d(512, 64, 4, 1, 0)  # 4 x 4
+        self.bn2 = nn.BatchNorm2d(64)
+        self.conv3 = nn.ConvTranspose2d(64, 64, 4, 2, 1)  # 8 x 8
+        self.bn3 = nn.BatchNorm2d(64)
+        self.conv4 = nn.ConvTranspose2d(64, 32, 4, 2, 1)  # 16 x 16
+        self.bn4 = nn.BatchNorm2d(32)
+        if self.output_shape[1] > 32:
+            self.conv5 = nn.ConvTranspose2d(32, 32, 4, 2, 1)  # 32 x 32
+            self.bn5 = nn.BatchNorm2d(32)
+        self.conv_final = nn.ConvTranspose2d(32, output_shape[0], 4, 2, 1)
+
+        # setup the non-linearity
+        self.act = nn.ReLU(inplace=True)
+        # self.output_act = output_act()
+
+    def forward(self, z):
+        h = z.view(z.size(0), z.size(1), 1, 1)
+        h = self.act(self.bn1(self.conv1(h)))
+        h = self.act(self.bn2(self.conv2(h)))
+        h = self.act(self.bn3(self.conv3(h)))
+        h = self.act(self.bn4(self.conv4(h)))
+        if self.output_shape[1] > 32:
+            h = self.act(self.bn5(self.conv4(h)))
+        img = self.conv_final(h)
+        return img
+
+class Mlp(nn.Module):
+    """ MLP as used in Vision Transformer, MLP-Mixer and related networks
+    """
+    def __init__(self, in_features, out_features=None, hidden_features=None,  act_layer=nn.GELU, bias=True, drop=0.):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.act = act_layer()
+        self.drop1 = nn.Dropout(drop)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.drop2 = nn.Dropout(drop)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.fc2(x)
+        x = self.drop2(x)
+        return x
+    
 @gin.configurable("conv_encoder", allowlist=[])
 class conv_encoder(nn.Module):
     """Convolutional encoder used in beta-VAE paper for the chairs data.
@@ -692,3 +800,11 @@ class ResidualDecoder(nn.Module):
         x = self.ac1(x)
         x = self.conv1(x)
         return x
+    
+if __name__ == '__main__':
+    print(ConvDecoder(10,[1,32,32])(torch.rand(2,10)).shape)
+    
+    print(ConvDecoder(10,[1,96,96])(torch.rand(2,10)).shape)
+    
+    print(ConvEncoder([1,32,32],10)(torch.rand(2,1,32,32)).shape)
+    print(ConvEncoder([1,96,96],10)(torch.rand(2,1,96,96)).shape)

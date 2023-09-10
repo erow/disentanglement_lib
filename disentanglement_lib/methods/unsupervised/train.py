@@ -21,7 +21,6 @@ import os
 import time
 
 from pytorch_lightning.core.datamodule import LightningDataModule
-from pytorch_lightning.utilities.cli import LightningCLI
 
 from disentanglement_lib.data import named_data
 from disentanglement_lib.data.ground_truth import util
@@ -153,7 +152,7 @@ class PLModel(pl.LightningModule):
         def _decoder(latent_vectors,*args):
             with torch.no_grad():
                 z = torch.FloatTensor(latent_vectors).to(device)
-                imgs = self.decode(z,*args).cpu().numpy()
+                imgs = self.decode(z,*args).sigmoid().cpu().numpy()
                 return imgs.transpose((0, 2, 3, 1))
 
         def _encoder(obs,*args):

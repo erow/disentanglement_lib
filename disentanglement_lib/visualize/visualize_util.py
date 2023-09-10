@@ -80,7 +80,7 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-np.clip(x, -20, 20)))
 
 
-def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
+def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3,return_recons=False):
     """
 
     :param mu: Tensor: [1,dim]
@@ -100,14 +100,17 @@ def plt_sample_traversal(mu, decode, traversal_len=5, dim_list=range(4), r=3):
     plt.tight_layout(pad=0.1)
     plt.subplots_adjust(wspace=0.01, hspace=0.05)
 
+    recons = []
     for i, dim in enumerate(dim_list):
         base_latents = mu.clone()
         linear_traversal = torch.linspace(-r, r, traversal_len)
         traversals = traversal_latents(base_latents, linear_traversal, dim)
         recon_batch = decode(traversals)
-
+        recons.append(recon_batch)
         plot_bar(axes[i, :], recon_batch)
-
+    if return_recons:
+        recons = np.concatenate(recons, axis=0 )
+        return fig, recons
     return fig
 
 

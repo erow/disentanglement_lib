@@ -8,7 +8,7 @@ import sys
 
 from disentanglement_lib.evaluation.metrics.mig import compute_mig
 from disentanglement_lib.methods.unsupervised.train import DataModule , PLModel, Iterate
-from disentanglement_lib.methods.unsupervised import callbacks
+from disentanglement_lib.evaluation import callbacks
 from disentanglement_lib.methods.unsupervised import model
 from disentanglement_lib.data.named_data import get_named_ground_truth_data
 import pytorch_lightning as pl
@@ -22,14 +22,17 @@ import gin
 from pytorch_lightning.loggers import WandbLogger, CSVLogger, TensorBoardLogger
 
 from disentanglement_lib.utils.results import save_gin
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_steps',type=int,default=1000)
     parser.add_argument('--seed',type=int,default=99)
     parser.add_argument('--output_dir',type=str,default='outputs')
     parser.add_argument('-c', '--configs', default=["model.gin"],nargs='+')
+    parser.add_argument('--batch_size',type=int,default=256)
     parser.add_argument('--wandb', action='store_true', default=False)
-    
+    parser.add_argument('--ngpus',type=int,default=1)
+        
     args, unknown = parser.parse_known_args()
     pl.seed_everything(args.seed)
     for gin_file in args.configs:
@@ -46,11 +49,11 @@ if __name__ == '__main__':
     CALLBACK_STEPS = args.max_steps//5
     pl_model = PLModel(seed=args.seed)
     dataset = get_named_ground_truth_data()    
-    dl = torch.utils.data.DataLoader(dataset,64,num_workers=4,pin_memory=True, shuffle=True )
+    dl = torch.utils.data.DataLoader(dataset,args.batch_size,num_workers=4,pin_memory=True, shuffle=True )
     
     
     callbacks_fn = [
-        # callbacks.Traversal(CALLBACK_STEPS),
+        callbacks.Traversal(CALLBACK_STEPS),
         callbacks.ShowSamples(CALLBACK_STEPS,dataset),
         ModelCheckpoint(args.output_dir,'checkpoint'),
     ]
@@ -71,15 +74,16 @@ if __name__ == '__main__':
 
     ckpt_path = os.path.join(args.output_dir,'checkpoint.ckpt')
     trainer = pl.Trainer(
-        logger,
+        logger=logger,
         default_root_dir=args.output_dir,
-        resume_from_checkpoint=ckpt_path if os.path.exists(ckpt_path) else None,
-        accelerator='gpu', devices=1,
+        accelerator='auto', devices=args.ngpus,
         max_steps=args.max_steps,
         callbacks=callbacks_fn,
         # enable_progress_bar=False,
         # weights_summary=None,
+        # strategy='dp',
     )
+    
     trainer.fit(pl_model, dl)
 
     

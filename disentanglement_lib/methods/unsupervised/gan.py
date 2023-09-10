@@ -97,7 +97,7 @@ class GAN(pl.LightningModule):
 		opt_d = opt_d_class(self.discriminator.parameters(), )
 		return [opt_g, opt_d], []
 
-	def on_epoch_end(self):
+	def on_train_epoch_end(self):
 		z = torch.randn(8, self.hparams.num_latent, device=self.device)
 
 		# log sampled images
