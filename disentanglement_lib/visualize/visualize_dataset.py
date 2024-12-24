@@ -48,6 +48,12 @@ def visualize_dataset(dataset_name, output_path, num_animations=5,
     if not os.path.isdir(path):
         pathlib.Path(path).mkdir(parents=True)
 
+    # Create random images.
+    factors = data.sample_factors(25, random_state)
+    images = data.sample_observations_from_factors(factors, random_state)
+    visualize_util.grid_save_images(
+        images, os.path.join(path, "random.png" ))
+    
     # Create still images.
     for i in range(data.num_factors):
         factors = data.sample_factors(16, random_state)
@@ -70,3 +76,5 @@ def visualize_dataset(dataset_name, output_path, num_animations=5,
         visualize_util.save_animation(np.array(images),
                                       os.path.join(path, "animation%d.gif" % i),
                                       fps)
+
+    

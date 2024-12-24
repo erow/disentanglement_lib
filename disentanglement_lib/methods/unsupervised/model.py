@@ -73,13 +73,13 @@ def shuffle_codes(z):
     return shuffled
 
 
-def compute_gaussian_kl(z_mean, z_logvar,weight=None):
+def compute_gaussian_kl(z_mean, z_logvar,axis=0):
     """Compute KL divergence between input Gaussian and Standard Normal."""
     kl =torch.square(z_mean) + torch.exp(z_logvar) - z_logvar - 1
-    if weight is None:
-        return 0.5 * torch.mean(kl, [0])
+    if axis is None:
+        return 0.5 * kl
     else:
-        return 0.5 * torch.mean(kl*weight[:,None], [0])
+        return 0.5 * torch.mean(kl, axis)
 
 
 def make_metric_fn(*names):
